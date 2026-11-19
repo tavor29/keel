@@ -1,0 +1,134 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the data-theme attribute set by src/app/theme.ts. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * Keel design tokens.
+ * Semantic tokens live on :root / [data-theme='dark'] and are exposed to
+ * Tailwind as utilities (bg-surface, text-muted, border-border, …) via @theme inline.
+ * Color is reserved for status: RAG, critical path, AI. Everything else is neutral.
+ */
+:root {
+  color-scheme: light;
+  --k-bg: #f5f6f8;
+  --k-surface: #ffffff;
+  --k-surface-2: #f0f2f5;
+  --k-surface-3: #e7eaef;
+  --k-border: #dde1e7;
+  --k-border-strong: #c3c9d2;
+  --k-text: #18202c;
+  --k-text-muted: #4b5666;
+  --k-text-subtle: #667181;
+  --k-accent: #1f5fbf;
+  --k-accent-hover: #1a52a6;
+  --k-accent-fg: #ffffff;
+  --k-accent-subtle: #e7eefa;
+  --k-focus: #2f6fd6;
+  --k-green: #1a7f37;
+  --k-green-subtle: #e5f4ea;
+  --k-amber: #946200;
+  --k-amber-subtle: #fbf1dc;
+  --k-red: #c22a1f;
+  --k-red-subtle: #fce8e6;
+  --k-critical: #d1242f;
+  --k-baseline: #a3acb9;
+  --k-ai: #6a46cf;
+  --k-ai-subtle: #efeafc;
+  --k-shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 12px rgb(16 24 40 / 0.08);
+  --k-overlay: rgb(15 20 28 / 0.4);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --k-bg: #0e1217;
+  --k-surface: #151a21;
+  --k-surface-2: #1c222b;
+  --k-surface-3: #252c37;
+  --k-border: #29303a;
+  --k-border-strong: #3a4350;
+  --k-text: #e5e8ed;
+  --k-text-muted: #aab3c0;
+  --k-text-subtle: #8c96a5;
+  --k-accent: #5a9cff;
+  --k-accent-hover: #78afff;
+  --k-accent-fg: #0a1220;
+  --k-accent-subtle: #19283f;
+  --k-focus: #78afff;
+  --k-green: #46c25d;
+  --k-green-subtle: #15291b;
+  --k-amber: #dba43a;
+  --k-amber-subtle: #2d2412;
+  --k-red: #ff6b61;
+  --k-red-subtle: #351a18;
+  --k-critical: #ff6b6b;
+  --k-baseline: #5d6774;
+  --k-ai: #a68cff;
+  --k-ai-subtle: #241d3d;
+  --k-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px rgb(0 0 0 / 0.35);
+  --k-overlay: rgb(0 0 0 / 0.55);
+}
+
+@theme inline {
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Cascadia Mono', 'SF Mono', Consolas, ui-monospace, monospace;
+
+  --color-bg: var(--k-bg);
+  --color-surface: var(--k-surface);
+  --color-surface-2: var(--k-surface-2);
+  --color-surface-3: var(--k-surface-3);
+  --color-border: var(--k-border);
+  --color-border-strong: var(--k-border-strong);
+  --color-text: var(--k-text);
+  --color-muted: var(--k-text-muted);
+  --color-subtle: var(--k-text-subtle);
+  --color-accent: var(--k-accent);
+  --color-accent-hover: var(--k-accent-hover);
+  --color-accent-fg: var(--k-accent-fg);
+  --color-accent-subtle: var(--k-accent-subtle);
+  --color-focus: var(--k-focus);
+  --color-green: var(--k-green);
+  --color-green-subtle: var(--k-green-subtle);
+  --color-amber: var(--k-amber);
+  --color-amber-subtle: var(--k-amber-subtle);
+  --color-red: var(--k-red);
+  --color-red-subtle: var(--k-red-subtle);
+  --color-critical: var(--k-critical);
+  --color-baseline: var(--k-baseline);
+  --color-ai: var(--k-ai);
+  --color-ai-subtle: var(--k-ai-subtle);
+  --color-overlay: var(--k-overlay);
+  --shadow-pop: var(--k-shadow);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--k-bg);
+    color: var(--k-text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--k-focus);
+    outline-offset: 1px;
+  }
+  ::selection {
+    background: var(--k-accent-subtle);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

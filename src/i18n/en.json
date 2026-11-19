@@ -1,0 +1,95 @@
+{
+  "app": {
+    "name": "Keel",
+    "tagline": "Program management where the conversation is the plan."
+  },
+  "nav": {
+    "briefing": "Briefing",
+    "timeline": "Timeline",
+    "boards": "Boards & tables",
+    "channels": "Channels",
+    "mail": "Mail triage",
+    "report": "Status report",
+    "raid": "RAID log",
+    "settings": "Settings",
+    "workstreams": "Workstreams",
+    "program": "Program",
+    "switchProgram": "Switch program",
+    "openMenu": "Open navigation",
+    "agile": "Sprints"
+  },
+  "topbar": {
+    "search": "Search or run a command…",
+    "askKeel": "Ask Keel",
+    "notifications": "Notifications",
+    "noNotifications": "Nothing needs you right now.",
+    "viewingAs": "Viewing as",
+    "persona": "Switch persona",
+    "theme": "Theme",
+    "resetDemo": "Reset demo data"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "roles": {
+    "pm": "Program manager",
+    "lead": "Workstream lead",
+    "member": "Member",
+    "guest": "External guest",
+    "exec": "Exec viewer"
+  },
+  "palette": {
+    "title": "Command palette",
+    "placeholder": "Type a command or search…",
+    "empty": "No matching commands.",
+    "groupNavigate": "Go to",
+    "groupProgram": "Switch program",
+    "groupTheme": "Theme",
+    "groupDemo": "Demo",
+    "askHint": "Ask Keel arrives in phase 5. For now: navigation, programs, theme."
+  },
+  "screens": {
+    "briefing": {
+      "title": "Briefing",
+      "body": "Your start-of-day view: proposals waiting for approval, what changed since you last looked, program health, and check-ins."
+    },
+    "timeline": {
+      "title": "Timeline",
+      "body": "Split grid + Gantt with dependencies, critical path, baseline ghost bars and stage gates."
+    },
+    "boards": {
+      "title": "Boards & tables",
+      "body": "Kanban and table views, sprint boards, backlog, burndown, workload heatmap and the budget view."
+    },
+    "channels": {
+      "title": "Channels",
+      "body": "Program and workstream chat, Slack/Teams bridges, and \"Promote to item\"."
+    },
+    "mail": {
+      "title": "Mail triage",
+      "body": "Your synced mailbox with filing suggestions. Emails stay private until you file and share them."
+    },
+    "report": {
+      "title": "Status report",
+      "body": "An auto-drafted weekly report where every line links to its source."
+    },
+    "raid": {
+      "title": "RAID log",
+      "body": "Risks, assumptions, issues and decisions, with a risk heat map."
+    },
+    "settings": {
+      "title": "Settings",
+      "body": "Calendar, check-in cadence, members, connectors, AI (bring your own key) and import/export."
+    },
+    "item": {
+      "title": "Item",
+      "body": "Item detail with fields, relations and the unified stream of messages, email and events."
+    },
+    "plannedFor": "Planned for phase {{phase}}",
+    "notFound": "Page not found",
+    "notFoundBody": "That page doesn't exist.",
+    "backHome": "Go to Briefing"
+  }
+}
