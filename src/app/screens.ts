@@ -28,7 +28,7 @@ export const screens: Screen[] = [
   { key: 'channels', icon: MessagesSquare, phase: 3 },
   { key: 'mail', icon: Inbox, phase: 2 },
   { key: 'report', icon: FileText, phase: 2 },
-  { key: 'raid', icon: ShieldAlert, phase: 4 },
+  { key: 'raid', icon: ShieldAlert, phase: 2 },
   { key: 'documents', icon: Files, phase: 4 },
   { key: 'settings', icon: Settings, phase: 5 },
 ];

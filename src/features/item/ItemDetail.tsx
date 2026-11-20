@@ -144,7 +144,10 @@ export function ItemDetail({ programId, itemId, onOpen }: { programId: string; i
             <Fact label="Probability × impact">
               {it.probability} × {it.impact} = {it.probability * it.impact}
             </Fact>
-            <Fact label="Mitigation">{it.mitigation ?? '—'}</Fact>
+            <Fact label="Severity · probability">
+              {it.impact} · {it.probability}
+            </Fact>
+            {it.trigger && <Fact label="Trigger">{humanize(it.trigger)}</Fact>}
           </>
         )}
         {it.type === 'change' && (
@@ -157,6 +160,24 @@ export function ItemDetail({ programId, itemId, onOpen }: { programId: string; i
           </>
         )}
       </dl>
+
+      {it.type === 'risk' && (
+        <div className="space-y-2">
+          {it.description && <p className="text-muted">{it.description}</p>}
+          {it.mitigation && (
+            <p>
+              <span className="font-semibold">Mitigation: </span>
+              {it.mitigation}
+            </p>
+          )}
+          {it.contingency && (
+            <p>
+              <span className="font-semibold text-accent">Plan B: </span>
+              {it.contingency}
+            </p>
+          )}
+        </div>
+      )}
 
       {it.type === 'gate' && (
         <div className="grid gap-3 sm:grid-cols-2">

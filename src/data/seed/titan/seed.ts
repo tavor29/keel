@@ -22,10 +22,10 @@ import type {
   Person,
   Proposal,
   Relation,
-  Risk,
   Workstream,
 } from '@/domain/types';
 import { titanTeam, TITAN_WS } from './people';
+import { titanRisks } from './risks';
 import { TITAN_AS_OF, TITAN_PROGRAM_ID, titanCalendar, titanProgram } from './plan';
 import titanXml from './titan-1.xml?raw';
 
@@ -56,26 +56,7 @@ export function titanSeed(): TitanSeed {
   const items: Item[] = imp.items;
 
   // ── Risks (RAID) and past change requests ─────────────────────────────
-  const risk = (k: string, ws: string, title: string, p: Risk['probability'], i: Risk['impact'], mitigation: string, owner: string): Risk => ({
-    ...base,
-    id: id(k),
-    workstreamId: ws,
-    order: 900,
-    type: 'risk',
-    title,
-    status: 'in_progress',
-    probability: p,
-    impact: i,
-    mitigation,
-    ownerId: owner,
-  });
-  items.push(
-    risk('risk_swgr_fat', TITAN_WS.power, 'MV switchgear factory acceptance failure', 3, 5, 'Witness FAT on site at VoltGrid; hold a slot for a re-test.', 'per_priya'),
-    risk('risk_utility', TITAN_WS.power, 'Utility line extension slips past G2', 2, 5, 'Weekly utility coordination call; temporary generator plan.', 'per_priya'),
-    risk('risk_gpu_alloc', TITAN_WS.compute, 'GPU allocation cut for batch 4', 2, 4, 'Allocation letter in MSA; alternate SKU qualified.', team.byWs.compute[0]!),
-    risk('risk_crane', TITAN_WS.cooling, 'Crane availability for chiller rigging', 3, 3, 'Book a second crane window in January.', team.byWs.cooling[0]!),
-    risk('risk_optics', TITAN_WS.network, 'Optics lead time stretches beyond 90 days', 3, 3, 'Split the PO across two suppliers.', team.byWs.network[0]!),
-  );
+  items.push(...titanRisks(team, base));
   const cr = (k: string, title: string, cost: number, at: string, scope: string): ChangeRequest => ({
     ...base,
     id: id(k),

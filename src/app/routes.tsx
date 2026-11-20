@@ -4,6 +4,7 @@ import { BriefingPage } from '@/features/briefing/BriefingPage';
 import { ItemPage } from '@/features/item/ItemSheet';
 import { MailPage } from '@/features/mail/MailPage';
 import { ReportPage } from '@/features/report/ReportPage';
+import { RaidPage } from '@/features/raid/RaidPage';
 import { NotFound, ScreenPlaceholder } from '@/features/ScreenPlaceholder';
 import { TimelinePage } from '@/features/timeline/TimelinePage';
 import { AppShell } from './layout/AppShell';
@@ -16,6 +17,7 @@ const built: Partial<Record<ScreenKey, ReactNode>> = {
   timeline: <TimelinePage />,
   mail: <MailPage />,
   report: <ReportPage />,
+  raid: <RaidPage />,
 };
 
 export const routes: RouteObject[] = [

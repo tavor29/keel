@@ -110,10 +110,12 @@ export interface Check { id: string; text: string; done: boolean; evidenceItemId
 
 export interface Risk extends ItemBase {
   type: 'risk';
-  probability: 1 | 2 | 3 | 4 | 5;
-  impact: 1 | 2 | 3 | 4 | 5;
+  code?: string;              // "R-01"
+  probability: 1 | 2 | 3 | 4 | 5;   // 1 rare … 5 almost certain
+  impact: 1 | 2 | 3 | 4 | 5;        // severity: 1 negligible … 5 critical
   trigger?: string;
-  mitigation?: string;        // mitigating items via Relation kind 'mitigates'
+  mitigation?: string;        // actions now; mitigating items via Relation kind 'mitigates'
+  contingency?: string;       // "Plan B" if the risk occurs
 }
 export interface Issue extends ItemBase { type: 'issue'; severity: 'low' | 'medium' | 'high' | 'critical'; resolution?: string }
 export interface Decision extends ItemBase { type: 'decision'; context: string; options: string[]; outcome?: string; decidedById?: string; decidedAt?: string }

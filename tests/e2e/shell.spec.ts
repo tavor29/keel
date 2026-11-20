@@ -45,3 +45,14 @@ test('mobile: navigation opens as a drawer', async ({ page, isMobile }) => {
   await expect(page).toHaveURL(/\/report$/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test('RAID log opens on the risk register table', async ({ page }) => {
+  await page.goto('/p/prg_titan/raid');
+  const table = page.getByRole('table', { name: 'Risk register' });
+  for (const h of ['Risk', 'Description', 'Severity', 'Probability of occurrence', 'Contingency and mitigation actions']) {
+    await expect(table.getByRole('columnheader', { name: new RegExp(h, 'i') })).toBeVisible();
+  }
+  await expect(page.getByTestId('risk-row')).toHaveCount(14);
+  await expect(page.getByTestId('risk-row').first()).toContainText('MV switchgear factory acceptance failure');
+  await expect(page.getByTestId('risk-row').first()).toContainText('Plan B');
+});
