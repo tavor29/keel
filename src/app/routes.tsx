@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Navigate, type RouteObject } from 'react-router';
+import { BoardsPage } from '@/features/boards/BoardsPage';
 import { BriefingPage } from '@/features/briefing/BriefingPage';
+import { ChannelsPage } from '@/features/channels/ChannelsPage';
 import { ItemPage } from '@/features/item/ItemSheet';
 import { MailPage } from '@/features/mail/MailPage';
 import { ReportPage } from '@/features/report/ReportPage';
@@ -18,6 +20,8 @@ const built: Partial<Record<ScreenKey, ReactNode>> = {
   mail: <MailPage />,
   report: <ReportPage />,
   raid: <RaidPage />,
+  boards: <BoardsPage />,
+  channels: <ChannelsPage />,
 };
 
 export const routes: RouteObject[] = [

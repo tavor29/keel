@@ -239,6 +239,7 @@ export interface Message {
   mentions: string[];
   createdAt: string;
   visibility: 'members' | 'pm_only';   // filed-private emails are pm_only
+  promotedItemId?: string;    // "Promote to item" created this item from the message
 }
 
 export interface MailMessage {                    // synced mailbox (pre-filing)
@@ -304,6 +305,9 @@ export interface Proposal {
   changes: PlanChange[];
   impact: Impact;
   confidence?: number;        // AI-origin only
+  /** Alternatives: proposals sharing a group are options; approving one supersedes the rest. */
+  optionGroup?: string;
+  optionLabel?: string;       // "Option A · Move the launch 2 weeks"
   state: 'pending' | 'approved' | 'edited_approved' | 'rejected' | 'superseded';
   decidedById?: string; decidedAt?: string;
   createdAt: string;

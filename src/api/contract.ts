@@ -8,6 +8,7 @@ import type {
   RaciOverride, Requirement, Stakeholder,
 } from '@/domain/types';
 import type { EvmSnapshot } from '@/domain/evm';
+import type { PromotionDraft } from '@/domain/promotion';
 
 export interface KeelApi {
   session: {
@@ -68,7 +69,7 @@ export interface KeelApi {
     channels(programId: string): Promise<Channel[]>;
     messages(container: Message['container'], q?: { before?: string; limit?: number }): Promise<Message[]>;
     post(container: Message['container'], body: string, opts?: { parentId?: string; asEmailTo?: string[] }): Promise<Message>;
-    promote(messageId: string, draft: NewItem): Promise<Item>;   // creates item + promoted_from relation
+    promote(messageId: string, draft: PromotionDraft): Promise<Item>;   // creates the item; message.promotedItemId links back
   };
 
   mail: {
@@ -114,7 +115,7 @@ export interface KeelApi {
 
   ai: {
     ask(programId: string, question: string): Promise<{ answer: string; citations: { kind: string; id: string }[]; proposalIds: string[] }>;
-    suggestPromotion(messageId: string): Promise<NewItem>;
+    suggestPromotion(messageId: string): Promise<PromotionDraft>;
   };
 
   connectors: {
@@ -151,7 +152,7 @@ export interface KeelApi {
   audit: { list(programId: string, q?: { targetId?: string }): Promise<AuditEntry[]> };
 
   demo: {
-    scenarios(): Promise<{ id: string; programId: string; title: string; steps: number }[]>;
+    scenarios(): Promise<{ id: string; programId: string; title: string; blurb: string; steps: number }[]>;
     run(scenarioId: string, opts?: { speed?: number }): Promise<void>;   // emits events over time
     stop(): Promise<void>;
     reset(): Promise<void>;
@@ -182,6 +183,8 @@ export interface ScheduleView {
   /** Working days vs the active baseline; positive = late. */
   variance: Record<string, { startDays: number; finishDays: number }>;
   baselineId?: string;
+  /** Sprint-run workstreams: velocity and projected finish. */
+  agile: Record<string, { velocity: number; remainingPoints: number; projectedFinish: string | null; basis: string; start?: string }>;
 }
 
 export interface RenderedDocument {

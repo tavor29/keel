@@ -6,7 +6,7 @@
 
 Keel is a web app for program managers running multi-team, high-tech programs. It combines MS Project-grade scheduling (critical path, baselines, stage gates), Monday-style boards, and the conversation that usually lives in Slack and email. AI turns what people say into proposed plan changes, shows their impact, and lets the PM approve them in one click.
 
-> Status: **Phases 0–2 done.** The hero demo plays end to end: a supplier email becomes an AI-proposed plan change, the PM approves it with its computed impact, an exec approves a change request, and the status report rewrites itself with linked sources. Built so far: Briefing, Timeline (split grid + Gantt, critical path, baselines), Item detail, Mail triage, Status report, and Demo controls. Next: [Phase 3, agile + Lumen AI](docs/build-plan.md).
+> Status: **Phases 0–3 done.** Three playable scenarios (Demo button): **T1** supplier email → AI proposal → change request → report (Titan-1, waterfall), **L1** Jira sprint closes short → launch at risk → Slack message promoted to a decision → pick an option (Lumen AI, agile), **L2** pen-test finding in Teams → issue → register risk + fix task. Screens: Briefing, Timeline, Boards (sprint board, burndown, velocity, backlog), Channels (Slack/Teams bridges, Promote to item), Mail triage, Status report, RAID risk register. Next: [Phase 4, plan editing, RAID, documents, cost](docs/build-plan.md).
 
 ## Develop
 

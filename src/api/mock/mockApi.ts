@@ -2,9 +2,10 @@ import { createSeedState } from '@/data/seed';
 import { computeEvm } from '@/domain/evm';
 import { addDays } from '@/domain/dates';
 import { suggestFiling } from '@/domain/mailFiling';
+import { suggestPromotion, type PromotionDraft } from '@/domain/promotion';
 import { actorFrom, can, type Action, type Actor, type Resource } from '@/domain/permissions';
 import { draftReport } from '@/domain/report';
-import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, Program, Proposal, StatusReport } from '@/domain/types';
+import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, Program, Proposal, StatusReport, Task } from '@/domain/types';
 import type { KeelApi, KeelEvent } from '../contract';
 import { ForbiddenError, NotFoundError, NotImplementedError, ValidationError } from '../errors';
 import { applyToState, createComputer, newId, previewImpact, rebaseline, toView } from './engine';
@@ -196,6 +197,58 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     return item;
   }
 
+  function closeSprintNow(s: MockState, sprintId: string) {
+    const sprint = s.sprints.find((x) => x.id === sprintId);
+    if (!sprint) throw new NotFoundError(`sprint ${sprintId}`);
+    const stories = s.items.filter((i): i is Task => i.type === 'task' && i.sprintId === sprintId);
+    sprint.state = 'closed';
+    sprint.completedPoints = stories.filter((t) => t.status === 'done').reduce((a, t) => a + (t.storyPoints ?? 0), 0);
+    sprint.burndown.push({ date: s.today, remainingPoints: sprint.committedPoints - sprint.completedPoints });
+    const carried = stories.filter((t) => t.status !== 'done');
+    for (const t of carried) delete t.sprintId;
+    s.rev += 1;
+    return { sprint, carried };
+  }
+
+  function promoteNow(s: MockState, messageId: string, draft: PromotionDraft): Item {
+    const m = s.messages.find((x) => x.id === messageId);
+    if (!m) throw new NotFoundError(`message ${messageId}`);
+    if (m.promotedItemId) throw new ValidationError('This message was already promoted');
+    if (!can(actorIn(s, m.programId), 'item.create', { workstreamId: draft.workstreamId })) throw new ForbiddenError('item.create');
+    const at = now();
+    const common = {
+      id: newId(s, 'itm'),
+      programId: m.programId,
+      workstreamId: draft.workstreamId,
+      order: 800,
+      title: draft.title,
+      description: draft.description,
+      ownerId: s.currentPersonId,
+      status: 'not_started' as const,
+      sharedWithGuestIds: [],
+      followerIds: [s.currentPersonId],
+      createdAt: at,
+      updatedAt: at,
+    };
+    const item: Item =
+      draft.type === 'risk'
+        ? { ...common, type: 'risk', probability: draft.probability ?? 3, impact: draft.impact ?? 3 }
+        : draft.type === 'issue'
+          ? { ...common, type: 'issue', severity: draft.severity ?? 'medium' }
+          : draft.type === 'decision'
+            ? { ...common, type: 'decision', context: draft.description, options: draft.options ?? [] }
+            : draft.type === 'assumption'
+              ? { ...common, type: 'assumption' }
+              : { ...common, type: 'task', durationHalfDays: 2, percentComplete: 0, assignments: [] };
+    s.items.push(item);
+    m.promotedItemId = item.id;
+    s.messages.push({ ...m, id: newId(s, 'msg'), container: { kind: 'item', id: item.id }, promotedItemId: undefined, parentId: undefined });
+    s.messages.push({ id: newId(s, 'msg'), programId: m.programId, container: { kind: 'item', id: item.id }, source: 'system', body: `Promoted from a ${m.source === 'slack' ? 'Slack' : m.source === 'teams' ? 'Teams' : 'Keel'} channel message by ${me(s).name}.`, mentions: [], createdAt: at, visibility: 'members' });
+    s.digest.push({ id: newId(s, 'dig'), programId: m.programId, at, group: draft.type === 'risk' ? 'risk' : draft.type === 'decision' ? 'decision' : 'schedule', text: `New ${draft.type}: ${draft.title}`, itemIds: [item.id], sourceIds: [m.id] });
+    s.rev += 1;
+    return item;
+  }
+
   const host: ScenarioHost = {
     get state() {
       return state;
@@ -206,6 +259,7 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     createProposal: createProposalNow,
     answerCheckin: answerCheckinNow,
     createChangeRequest: createChangeRequestNow,
+    closeSprint: closeSprintNow,
     speed: opts.scenarioSpeed ?? 1,
   };
   const scenarios = createScenarioRunner(host);
@@ -354,12 +408,25 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     }),
 
     conversation: planned<KeelApi['conversation']>('conversation', 3, {
-      channels: (programId) => read((s) => s.channels.filter((c) => c.programId === programId)),
+      channels: (programId) =>
+        read((s) => {
+          requireProgram(s, programId, 'program.view');
+          return actorIn(s, programId)?.role === 'guest' ? [] : s.channels.filter((c) => c.programId === programId);
+        }),
+      promote: (messageId, draft) =>
+        write(
+          (s) => promoteNow(s, messageId, draft),
+          (item) => [{ type: 'item.changed', programId: item.programId, itemIds: [item.id] }],
+        ),
       messages: (container, q) =>
         read((s) => {
           if (container.kind === 'item') {
             const item = findItem(s, container.id);
             if (!canSee(s, item)) throw new ForbiddenError(`item.view on ${container.id}`);
+          } else {
+            const ch = s.channels.find((c) => c.id === container.id);
+            if (!ch) throw new NotFoundError(`channel ${container.id}`);
+            if (actorIn(s, ch.programId)?.role === 'guest' || !actorIn(s, ch.programId)) throw new ForbiddenError('channel.view');
           }
           const list = s.messages
             .filter((m) => m.container.kind === container.kind && m.container.id === container.id && canSeeMessage(s, m) && (!q?.before || m.createdAt < q.before))
@@ -494,6 +561,11 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
               summary,
             });
             Object.assign(p, { state: edited ? 'edited_approved' : 'approved', decidedById: s.currentPersonId, decidedAt: now(), ...(edited ? { changes, summary } : {}) });
+            if (p.optionGroup) {
+              for (const alt of s.proposals.filter((x) => x.optionGroup === p.optionGroup && x.id !== p.id && x.state === 'pending')) {
+                Object.assign(alt, { state: 'superseded', decidedById: s.currentPersonId, decidedAt: now() });
+              }
+            }
             // Other pending proposals' impacts are now stale: recompute them.
             for (const other of s.proposals.filter((x) => x.programId === p.programId && x.state === 'pending')) {
               try {
@@ -657,9 +729,45 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     events: { subscribe: (handler) => bus.subscribe(handler) },
 
     // Later phases — see docs/build-plan.md
-    agile: planned('agile', 3),
+    agile: planned<KeelApi['agile']>('agile', 4, {
+      sprints: (workstreamId) => read((s) => s.sprints.filter((sp) => sp.workstreamId === workstreamId).sort((a, b) => a.start.localeCompare(b.start))),
+      backlog: (workstreamId) =>
+        read((s) => {
+          const active = new Set(s.sprints.filter((sp) => sp.state !== 'closed').map((sp) => sp.id));
+          return s.items.filter((i): i is Task => i.type === 'task' && i.workstreamId === workstreamId && i.storyPoints !== undefined && i.status !== 'done' && i.status !== 'cancelled' && !(i.sprintId && active.has(i.sprintId)));
+        }),
+      projection: (workstreamId) =>
+        read((s) => {
+          const ws = s.workstreams.find((w) => w.id === workstreamId);
+          if (!ws) throw new NotFoundError(`workstream ${workstreamId}`);
+          const a = compute(s, ws.programId).result.agile.get(workstreamId);
+          return { projectedFinish: a?.projectedFinish ?? '', avgVelocity: a?.velocity ?? 0 };
+        }),
+      closeSprint: (sprintId) =>
+        write(
+          (s) => {
+            const sp = s.sprints.find((x) => x.id === sprintId);
+            const ws = s.workstreams.find((w) => w.id === sp?.workstreamId);
+            if (!sp || !ws) throw new NotFoundError(`sprint ${sprintId}`);
+            if (!can(actorIn(s, ws.programId), 'item.edit', { workstreamId: ws.id, ownerId: undefined, sharedWithGuestIds: [] })) throw new ForbiddenError('sprint.close');
+            return { ...closeSprintNow(s, sprintId).sprint, programId: ws.programId };
+          },
+          (r) => [{ type: 'sprint.changed', sprintId: r.id }, ...programEvents(r.programId)],
+        ),
+    }),
     documents: planned('documents', 4),
-    ai: planned('ai', 5),
+    ai: planned<KeelApi['ai']>('ai', 5, {
+      suggestPromotion: (messageId) =>
+        read((s) => {
+          const m = s.messages.find((x) => x.id === messageId);
+          if (!m) throw new NotFoundError(`message ${messageId}`);
+          const hint = s.promotionHints[messageId];
+          if (hint) return hint;
+          const ch = m.container.kind === 'channel' ? s.channels.find((c) => c.id === m.container.id) : undefined;
+          const ws = ch?.workstreamId ?? s.workstreams.find((w) => w.programId === m.programId)!.id;
+          return suggestPromotion(m, ws);
+        }),
+    }),
     connectors: planned('connectors', 5),
     io: planned('io', 5),
 

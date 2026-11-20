@@ -81,6 +81,12 @@ export function toView(c: Computed): ScheduleView {
     wbs: Object.fromEntries(wbsNumbers(plan.items)),
     variance: v,
     baselineId: plan.baseline?.id,
+    agile: Object.fromEntries(
+      [...result.agile].map(([ws, a]) => {
+        const first = plan.sprints.filter((sp) => sp.workstreamId === ws).sort((x, y) => x.start.localeCompare(y.start))[0];
+        return [ws, { ...a, ...(first ? { start: first.start } : {}) }];
+      }),
+    ),
   };
 }
 

@@ -22,10 +22,12 @@ import type {
   Person,
   Proposal,
   Relation,
+  Sprint,
   Workstream,
 } from '@/domain/types';
 import { titanTeam, TITAN_WS } from './people';
 import { titanRisks } from './risks';
+import { titanSoftwareSprints } from './software';
 import { TITAN_AS_OF, TITAN_PROGRAM_ID, titanCalendar, titanProgram } from './plan';
 import titanXml from './titan-1.xml?raw';
 
@@ -46,6 +48,7 @@ export interface TitanSeed {
   proposals: Proposal[];
   checkinRounds: CheckinRound[];
   digest: DigestEntry[];
+  sprints: Sprint[];
 }
 
 const base = { programId: P, sharedWithGuestIds: [] as string[], followerIds: [] as string[], createdAt: T('2026-07-10'), updatedAt: T('2026-11-10') };
@@ -79,7 +82,8 @@ export function titanSeed(): TitanSeed {
     cr('cr_014', 'CR-014 · Second crane for steel erection', 8_500_000, T('2026-11-12'), 'Recover 6 days on steel erection.'),
   );
 
-  const plan: PlanState = { program: titanProgram, calendar: titanCalendar, workstreams: imp.workstreams, items, relations: imp.relations, sprints: [], costEntries: [], asOf: TITAN_AS_OF };
+  const sprints = titanSoftwareSprints(items);
+  const plan: PlanState = { program: titanProgram, calendar: titanCalendar, workstreams: imp.workstreams, items, relations: imp.relations, sprints, costEntries: [], asOf: TITAN_AS_OF };
 
   // ── Contract baseline (G0): switchgear B was due mid-February; cooling & network were planned 10% faster ──
   const variant = structuredClone(plan);
@@ -249,5 +253,6 @@ export function titanSeed(): TitanSeed {
     proposals,
     checkinRounds,
     digest,
+    sprints,
   };
 }

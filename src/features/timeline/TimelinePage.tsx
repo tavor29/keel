@@ -231,7 +231,25 @@ export function TimelinePage() {
             {/* Bars */}
             {vItems.map((v) => {
               const row = rows[v.index]!;
-              if (row.kind === 'ws') return null;
+              if (row.kind === 'ws') {
+                const a = schedule.agile[row.ws.id];
+                if (!a?.start || !a.projectedFinish) return null;
+                const x0 = x(a.start);
+                const x1 = x(a.projectedFinish) + px;
+                const y = v.index * ROW_H;
+                return (
+                  <g key={row.ws.id} data-testid={`agile-bar-${row.ws.id}`}>
+                    <rect x={x0} y={y + 8} width={Math.max(3, x1 - x0)} height={11} rx={5} fill={row.ws.color} opacity={0.35} />
+                    <rect x={x1 - 6} y={y + 8} width={12} height={12} transform={`rotate(45 ${x1} ${y + 14})`} fill={row.ws.color} />
+                    <text x={x1 + 10} y={y + 18} fontSize={11} fill="var(--k-text-muted)">
+                      projected {fmtDate(a.projectedFinish)} · velocity {Math.round(a.velocity)}
+                    </text>
+                    <title>
+                      {row.ws.name}: sprint-run, {a.remainingPoints} points left, projected {fmtDate(a.projectedFinish)}
+                    </title>
+                  </g>
+                );
+              }
               const it = row.item;
               const n = nodes.get(it.id);
               if (!n) return null;
@@ -323,7 +341,7 @@ export function TimelinePage() {
                     <span className="size-2 rounded-sm" style={{ background: row.ws.color }} aria-hidden />
                     {row.ws.name}
                     <RagDot rag={schedule.rag.workstreams[row.ws.id]} className="ml-1" />
-                    {row.ws.mode === 'agile' && <span className="ml-1 text-[11px] font-normal text-subtle">· sprint-run (phase 3)</span>}
+                    {row.ws.mode === 'agile' && <span className="ml-1 text-[11px] font-normal text-subtle">· sprint-run</span>}
                   </button>
                 </div>
               );

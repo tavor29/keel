@@ -213,3 +213,35 @@ export function usePublishReport() {
   const api = useApi();
   return useMutation({ mutationFn: (id: string) => api.reports.publish(id) });
 }
+
+// ── Agile & channels (phase 3) ─────────────────────────────
+
+export function useSprints(programId: string, workstreamId: string | undefined) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'sprints', workstreamId], queryFn: () => api.agile.sprints(workstreamId!), enabled: !!workstreamId });
+}
+
+export function useBacklog(programId: string, workstreamId: string | undefined) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'backlog', workstreamId], queryFn: () => api.agile.backlog(workstreamId!), enabled: !!workstreamId });
+}
+
+export function useChannels(programId: string) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'channels'], queryFn: () => api.conversation.channels(programId) });
+}
+
+export function useSuggestPromotion(programId: string, messageId: string | undefined) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'promotion', messageId], queryFn: () => api.ai.suggestPromotion(messageId!), enabled: !!messageId, staleTime: Infinity });
+}
+
+export function usePromote() {
+  const api = useApi();
+  return useMutation({ mutationFn: ({ messageId, draft }: { messageId: string; draft: Parameters<typeof api.conversation.promote>[1] }) => api.conversation.promote(messageId, draft) });
+}
+
+export function useUpdateItem() {
+  const api = useApi();
+  return useMutation({ mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof api.items.update>[1] }) => api.items.update(id, patch) });
+}

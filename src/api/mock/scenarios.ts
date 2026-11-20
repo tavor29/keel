@@ -3,7 +3,7 @@
 // The "AI" here is scripted: plan changes are fixed, but every number shown to the
 // viewer comes from the real domain computations.
 import { addDays, diffDays } from '@/domain/dates';
-import type { ChangeRequest, CheckinRequest, MailMessage, Message, PlanChange, Proposal } from '@/domain/types';
+import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, PlanChange, Proposal, Sprint, Task } from '@/domain/types';
 import type { KeelEvent } from '../contract';
 import type { EventBus } from './eventBus';
 import type { MockState } from './state';
@@ -20,6 +20,7 @@ export interface ScenarioHost {
     programId: string,
     cr: Pick<ChangeRequest, 'title' | 'scopeDelta' | 'costDeltaCents' | 'changes' | 'approverIds' | 'workstreamId'> & { ownerId: string; description?: string },
   ): ChangeRequest;
+  closeSprint(s: MockState, sprintId: string): { sprint: Sprint; carried: Task[] };
   speed: number;
 }
 
@@ -39,6 +40,7 @@ interface Scenario {
   id: string;
   programId: string;
   title: string;
+  blurb: string;
   steps: number;
   run(ctx: Ctx): Promise<void>;
 }
@@ -51,6 +53,7 @@ const t1: Scenario = {
   id: 't1-switchgear-slip',
   programId: TITAN,
   title: 'T1 · The switchgear slip',
+  blurb: 'Titan-1 · supplier email → AI proposal → approval → change request → report',
   steps: 9,
   async run(ctx) {
     const { host } = ctx;
@@ -171,7 +174,195 @@ const t1: Scenario = {
   },
 };
 
-const ALL: Scenario[] = [t1];
+// ── Lumen AI ─────────────────────────────
+const LUMEN = 'prg_lumen';
+const PLATFORM = 'wst_lumen_platform';
+const INFRA = 'wst_lumen_infra';
+const LAUNCH = 'itm_lumen_launch';
+const EVAL_V2 = ['itm_lumen_lmp_eval_dash1', 'itm_lumen_lmp_eval_dash2', 'itm_lumen_lmp_eval_dash3'];
+let msgSeq = 0;
+const msgId = () => `msg_scn_${Date.now().toString(36)}_${++msgSeq}`;
+
+function channelMessage(host: ScenarioHost, channel: string, m: Pick<Message, 'source' | 'body'> & { authorId?: string }): Message {
+  return host.write(
+    (s) => {
+      const msg: Message = { id: msgId(), programId: LUMEN, container: { kind: 'channel', id: channel }, mentions: [], createdAt: new Date().toISOString(), visibility: 'members', ...m };
+      s.messages.push(msg);
+      return msg;
+    },
+    (msg) => [{ type: 'message.posted', message: msg }],
+  );
+}
+
+const l1: Scenario = {
+  id: 'l1-sprint-slip',
+  programId: LUMEN,
+  title: 'L1 · The sprint slip',
+  blurb: 'Lumen AI · Jira sprint closes short → launch at risk → Slack message promoted to a decision → pick an option',
+  steps: 6,
+  async run(ctx) {
+    const { host } = ctx;
+    ctx.caption('Model Platform is about to close Sprint 14 in Jira…');
+    await ctx.delay(1500);
+
+    // 1. Jira: the last stories land, the sprint closes short
+    const { sprint, carried } = host.write(
+      (s) => {
+        for (const id of ['itm_lumen_lmp_302', 'itm_lumen_lmp_305']) {
+          const t = s.items.find((i) => i.id === id);
+          if (t?.type === 'task') Object.assign(t, { status: 'done', percentComplete: 100 });
+        }
+        return host.closeSprint(s, 'spr_lmp_14');
+      },
+      () => [{ type: 'sprint.changed', sprintId: 'spr_lmp_14' }, { type: 'item.changed', programId: LUMEN, itemIds: [] }, { type: 'schedule.recomputed', programId: LUMEN }],
+    );
+    const jira = channelMessage(host, 'chn_lumen_platform', {
+      source: 'jira',
+      body: `Sprint 14 closed in Jira (LMP): ${sprint.completedPoints} of ${sprint.committedPoints} points done. ${carried.map((t) => t.externalRef?.key ?? t.title).join(', ')} moved back to the backlog.`,
+    });
+    ctx.caption(`Sprint 14 closed at ${sprint.completedPoints}/${sprint.committedPoints}. Velocity dropped, the projection moved out a sprint, and Public launch turned red.`);
+    await ctx.delay(2000);
+
+    // 2. Two options, each with computed impact
+    const launch = host.state.items.find((i) => i.id === LAUNCH);
+    if (!launch || launch.type !== 'milestone' || !launch.deadline) throw new Error('Seed is missing Public launch');
+    const group = `l1_${Date.now().toString(36)}`;
+    const sources = [{ kind: 'message' as const, id: jira.id, quote: jira.body }];
+    host.write(
+      (s) => [
+        host.createProposal(s, {
+          programId: LUMEN,
+          origin: 'ai',
+          optionGroup: group,
+          optionLabel: 'Option A · Move Public launch 2 weeks',
+          rationale: 'Keeps the launch scope intact. Partners and customers need to hear about the new date.',
+          sources,
+          changes: [{ op: 'set_field', itemId: LAUNCH, field: 'deadline', value: addDays(launch.deadline!, 14) }],
+          confidence: 0.8,
+        }),
+        host.createProposal(s, {
+          programId: LUMEN,
+          origin: 'ai',
+          optionGroup: group,
+          optionLabel: 'Option B · Ship Eval dashboard v2 after launch',
+          rationale: 'Removes 13 points (LMP-330 to LMP-332) from launch scope so the date holds. Nobody depends on v2 on day one.',
+          sources,
+          changes: EVAL_V2.map((itemId) => ({ op: 'set_status' as const, itemId, status: 'cancelled' as const })),
+          confidence: 0.84,
+        }),
+      ],
+      (ps) => ps.map((p) => ({ type: 'proposal.created' as const, proposal: p })),
+    );
+    ctx.caption('Keel proposed two options, each with its impact computed.');
+    await ctx.delay(1800);
+
+    // 3. The team talks in Slack; the PM promotes it to a decision
+    const slack = channelMessage(host, 'chn_lumen_platform', {
+      source: 'slack',
+      authorId: 'per_sam',
+      body: 'honestly we could ship the eval dashboard after launch, nobody needs v2 on day one',
+    });
+    host.write((s) => {
+      s.promotionHints[slack.id] = {
+        type: 'decision',
+        title: 'Ship Eval dashboard v2 after launch?',
+        workstreamId: PLATFORM,
+        description: `Sprint 14 closed at ${sprint.completedPoints}/${sprint.committedPoints} and Public launch is at risk. Sam Okafor (Slack): “${slack.body}”`,
+        options: ['Move Public launch 2 weeks', 'Ship Eval dashboard v2 after launch'],
+      };
+    });
+    const promoted = (s: MockState) => !!s.messages.find((m) => m.id === slack.id)?.promotedItemId;
+    ctx.caption('Sam suggested descoping in the bridged Slack channel.', 'Open Channels → #lumen-platform and use “Promote” on Sam’s message to record a decision.');
+    await ctx.waitFor('Open Channels → #lumen-platform and use “Promote” on Sam’s message to record a decision.', (_e, s) => promoted(s), promoted);
+
+    // 4. Choose an option
+    const decided = (s: MockState) => s.proposals.some((p) => p.optionGroup === group && p.state !== 'pending');
+    ctx.caption('Decision recorded with both options and a link back to the Slack message.', 'Choose an option: approve one of the two proposals in the Briefing.');
+    await ctx.waitFor('Choose an option: approve one of the two proposals in the Briefing.', (_e, s) => decided(s), decided);
+    const chosen = host.state.proposals.find((p) => p.optionGroup === group && (p.state === 'approved' || p.state === 'edited_approved'));
+    if (!chosen) {
+      ctx.caption('Both options were rejected: the launch stays at risk. The scenario ends here.');
+      return;
+    }
+    const decisionId = host.state.messages.find((m) => m.id === slack.id)!.promotedItemId!;
+    host.write(
+      (s) => {
+        const d = s.items.find((i) => i.id === decisionId);
+        if (d?.type === 'decision') Object.assign(d, { outcome: chosen.optionLabel?.split(' · ')[1], decidedById: s.currentPersonId, decidedAt: new Date().toISOString(), status: 'done' });
+        s.rev += 1;
+      },
+      () => [{ type: 'item.changed', programId: LUMEN, itemIds: [decisionId] }],
+    );
+    ctx.caption(`Done: Jira sprint close → projection → two options → Slack message promoted to a decision → “${chosen.optionLabel?.split(' · ')[1]}” applied to the plan.`);
+  },
+};
+
+const l2: Scenario = {
+  id: 'l2-pen-test',
+  programId: LUMEN,
+  title: 'L2 · Pen-test finding',
+  blurb: 'Lumen AI · Teams message → issue → risk in the register + fix task on the plan',
+  steps: 4,
+  async run(ctx) {
+    const { host } = ctx;
+    ctx.caption('A message is about to land in the Security channel (bridged from Teams)…');
+    await ctx.delay(1500);
+    const teams = channelMessage(host, 'chn_lumen_security', {
+      source: 'teams',
+      authorId: 'per_ben_osei',
+      body: 'Pen test found a critical auth issue in the API gateway: tokens can be replayed across tenants. We need a fix before the SOC 2 audit fieldwork.',
+    });
+    host.write((s) => {
+      s.promotionHints[teams.id] = { type: 'issue', title: 'Critical: API gateway token replay across tenants', workstreamId: INFRA, severity: 'critical', description: teams.body };
+    });
+    const promoted = (s: MockState) => !!s.messages.find((m) => m.id === teams.id)?.promotedItemId;
+    ctx.caption('Critical finding reported in Teams.', 'Open Channels → #security and Promote the message to an Issue.');
+    await ctx.waitFor('Open Channels → #security and Promote the message to an Issue.', (_e, s) => promoted(s), promoted);
+    await ctx.delay(1200);
+
+    const p = host.write(
+      (s) =>
+        host.createProposal(s, {
+          programId: LUMEN,
+          origin: 'ai',
+          rationale: 'A critical finding must be fixed and re-tested before audit fieldwork. Keel suggests a risk on the SOC 2 report and a fix task that feeds the audit.',
+          sources: [{ kind: 'message', id: teams.id, quote: teams.body }],
+          changes: [
+            {
+              op: 'create_item',
+              draft: {
+                id: 'itm_lumen_risk_pentest',
+                type: 'risk',
+                code: 'L-05',
+                title: 'SOC 2 report delayed by open critical finding',
+                workstreamId: INFRA,
+                probability: 4,
+                impact: 4,
+                description: 'The API gateway token-replay finding must be fixed and re-tested before audit fieldwork, or the SOC 2 Type I report slips.',
+                mitigation: 'Fix prioritized in the current sprint; re-test booked with the pen-test vendor.',
+                contingency: 'Ask the auditor to carve out the gateway control and issue a bridge letter for launch.',
+                status: 'in_progress',
+                ownerId: 'per_ben_osei',
+              } as Partial<Item> & { type: 'risk'; title: string; workstreamId: string },
+            },
+            {
+              op: 'create_item',
+              draft: { id: 'itm_lumen_fix_gateway', type: 'task', title: 'Fix API gateway token replay + re-test', workstreamId: INFRA, durationHalfDays: 12, snet: s.today, ownerId: 'per_ben_osei' } as Partial<Item> & { type: 'task'; title: string; workstreamId: string },
+            },
+            { op: 'add_relation', relation: { kind: 'FS', fromId: 'itm_lumen_fix_gateway', toId: 'itm_lumen_audit_fieldwork', lagHalfDays: 0 } },
+          ],
+          confidence: 0.88,
+        }),
+      (pp) => [{ type: 'proposal.created', proposal: pp }],
+    );
+    ctx.caption('Keel proposed a register risk and a fix task linked to the audit, with impact computed.', 'Approve the proposal in the Briefing.');
+    const done = (s: MockState) => s.proposals.some((x) => x.id === p.id && x.state !== 'pending');
+    await ctx.waitFor('Approve the proposal in the Briefing.', (_e, s) => done(s), done);
+    ctx.caption('Done: Teams message → issue → risk L-05 in the register and a fix task on the plan, linked to the audit.');
+  },
+};
+
+const ALL: Scenario[] = [t1, l1, l2];
 
 export function createScenarioRunner(host: ScenarioHost) {
   let active: { id: string; cancel: () => void } | null = null;
@@ -258,7 +449,7 @@ export function createScenarioRunner(host: ScenarioHost) {
   };
 
   return {
-    list: () => ALL.map(({ id, programId, title, steps }) => ({ id, programId, title, steps })),
+    list: () => ALL.map(({ id, programId, title, blurb, steps }) => ({ id, programId, title, blurb, steps })),
     run,
     stop: () => {
       active?.cancel();

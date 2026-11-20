@@ -9,7 +9,7 @@ test('T1 · the switchgear slip plays end to end', async ({ page, isMobile }) =>
 
   // Start the scenario from the demo panel
   await page.getByRole('button', { name: 'Demo', exact: true }).click();
-  await page.getByRole('button', { name: 'Run', exact: true }).click();
+  await page.getByTestId('scenario-t1-switchgear-slip').getByRole('button', { name: 'Run', exact: true }).click();
   const hint = page.getByTestId('demo-hint');
   await expect(hint).toContainText('File & share', { timeout: 15_000 });
 
@@ -25,7 +25,7 @@ test('T1 · the switchgear slip plays end to end', async ({ page, isMobile }) =>
   const proposal = page.getByTestId('proposal-card').filter({ hasText: 'MV switchgear lineup B delivery +21 days' });
   await expect(proposal.getByTestId('impact')).toContainText('G2 · Energization');
   await proposal.getByRole('button', { name: 'Approve', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Stage gates' })).toContainText('late');
+  await expect(page.getByRole('region', { name: 'Milestones & gates' })).toContainText('late');
 
   // 5–6. Check-in answer → CR-015 drafted → switch to the exec
   await expect(hint).toContainText('Jordan Lee', { timeout: 20_000 });

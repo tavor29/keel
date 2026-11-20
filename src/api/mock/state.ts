@@ -1,3 +1,4 @@
+import type { PromotionDraft } from '@/domain/promotion';
 import type {
   AuditEntry,
   Baseline,
@@ -25,7 +26,7 @@ import type {
  * Bump when the shape of MockState or the seed changes incompatibly.
  * Old persisted state is discarded and the demo reseeds.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 5;
 
 export interface MockState {
   schemaVersion: number;
@@ -56,6 +57,8 @@ export interface MockState {
   digest: DigestEntry[];
   notifications: Notification[];
   audit: AuditEntry[];
+  /** Scripted "Promote to item" drafts, keyed by message id. */
+  promotionHints: Record<string, PromotionDraft>;
   /** id counter for new records */
   seq: number;
 }

@@ -139,6 +139,30 @@ export function ItemDetail({ programId, itemId, onOpen }: { programId: string; i
             <Fact label="Complete">{it.percentComplete}%</Fact>
           </>
         )}
+        {it.type === 'task' && it.storyPoints !== undefined && (
+          <>
+            <Fact label="Story points">{it.storyPoints}</Fact>
+            <Fact label="Sprint">{it.sprintId ? it.sprintId.replace(/^spr_[a-z]+_/, 'Sprint ') : 'Backlog'}</Fact>
+            {it.externalRef && (
+              <Fact label={it.externalRef.system === 'jira' ? 'Jira' : 'GitHub'}>
+                <a href={it.externalRef.url} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+                  {it.externalRef.key}
+                </a>
+              </Fact>
+            )}
+          </>
+        )}
+        {it.type === 'decision' && (
+          <>
+            <Fact label="Outcome">{it.outcome ?? 'Not decided yet'}</Fact>
+            <Fact label="Options">{it.options.length ? it.options.join(' · ') : '—'}</Fact>
+          </>
+        )}
+        {it.type === 'issue' && (
+          <Fact label="Severity">
+            <span className={cn('capitalize', it.severity === 'critical' && 'text-red')}>{it.severity}</span>
+          </Fact>
+        )}
         {it.type === 'risk' && (
           <>
             <Fact label="Probability × impact">

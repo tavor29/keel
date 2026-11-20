@@ -136,6 +136,7 @@ export function ProposalCard({ proposal, programId, compact }: { proposal: Propo
           </Badge>
         )}
       </header>
+      {proposal.optionLabel && <p className="mb-0.5 text-[13.5px] font-semibold text-ai">{proposal.optionLabel}</p>}
       <p className="font-medium leading-snug">{humanize(proposal.summary)}</p>
       {!compact && <p className="mt-1 text-muted">{humanize(proposal.rationale)}</p>}
       {!compact &&

@@ -24,7 +24,7 @@ export interface Screen {
 export const screens: Screen[] = [
   { key: 'briefing', icon: ClipboardList, phase: 2 },
   { key: 'timeline', icon: CalendarRange, phase: 2 },
-  { key: 'boards', icon: KanbanSquare, phase: 5 },
+  { key: 'boards', icon: KanbanSquare, phase: 3 },
   { key: 'channels', icon: MessagesSquare, phase: 3 },
   { key: 'mail', icon: Inbox, phase: 2 },
   { key: 'report', icon: FileText, phase: 2 },

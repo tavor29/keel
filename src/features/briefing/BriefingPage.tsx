@@ -88,7 +88,7 @@ export function BriefingPage() {
   const myCrs = crs.filter((c) => c.approverIds.includes(me.person.id));
   const otherCrs = crs.filter((c) => !c.approverIds.includes(me.person.id));
   const gates = schedule.nodes
-    .filter((n) => byId.get(n.itemId)?.type === 'gate')
+    .filter((n) => byId.get(n.itemId)?.type === 'gate' || byId.get(n.itemId)?.type === 'milestone')
     .sort((a, b) => a.es.localeCompare(b.es));
   const risks = items
     .filter((i): i is Extract<Item, { type: 'risk' }> => i.type === 'risk' && i.status !== 'done')
@@ -98,7 +98,7 @@ export function BriefingPage() {
   const answered = lastRound?.requests.filter((r) => r.answer) ?? [];
   const atRisk = answered.filter((r) => r.answer?.kind !== 'on_track');
   const needsCount = (role === 'pm' ? pending.length : 0) + myCrs.length;
-  const e = evm?.program;
+  const e = evm?.program && evm.program.bacCents > 0 ? evm.program : undefined;
 
   return (
     <div className="mx-auto grid max-w-[1400px] gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -153,7 +153,7 @@ export function BriefingPage() {
       </div>
 
       <div className="min-w-0 space-y-4">
-        <Panel title="Stage gates" icon={<Flag />}>
+        <Panel title="Milestones & gates" icon={<Flag />}>
           <ul className="space-y-1.5">
             {gates.map((g) => {
               const it = byId.get(g.itemId)!;
@@ -173,6 +173,28 @@ export function BriefingPage() {
             })}
           </ul>
         </Panel>
+
+        {workstreams.some((w) => w.mode === 'agile' && schedule.agile[w.id]) && (
+          <Panel title="Sprint health" icon={<Sparkles />}>
+            <ul className="space-y-1.5">
+              {workstreams
+                .filter((w) => w.mode === 'agile' && schedule.agile[w.id])
+                .map((w) => {
+                  const a = schedule.agile[w.id]!;
+                  return (
+                    <li key={w.id} className="flex items-center gap-2">
+                      <span className="size-2 rounded-sm" style={{ background: w.color }} aria-hidden />
+                      <Link to={`/p/${programId}/boards`} className="min-w-0 flex-1 truncate hover:underline">
+                        {w.name}
+                      </Link>
+                      <span className="text-[11.5px] tabular-nums text-subtle">v {Math.round(a.velocity)}</span>
+                      <span className="w-24 text-right tabular-nums text-muted">{a.projectedFinish ? fmtDate(a.projectedFinish, schedule.asOf) : '—'}</span>
+                    </li>
+                  );
+                })}
+            </ul>
+          </Panel>
+        )}
 
         {e && (
           <Panel title="Budget & earned value" icon={<TrendingUp />}>

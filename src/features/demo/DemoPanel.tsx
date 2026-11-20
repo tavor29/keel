@@ -1,5 +1,6 @@
 import { Play, PlayCircle, RotateCcw, Square, X } from 'lucide-react';
 import { useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router';
 import { useApi } from '@/api/context';
 import { useMe, usePersonas, useResetDemo, useScenarios, useSwitchPersona } from '@/api/queries';
 import { Button } from '@/ui/Button';
@@ -16,6 +17,8 @@ export function DemoPanel() {
   const me = useMe().data;
   const switchPersona = useSwitchPersona();
   const reset = useResetDemo();
+  const navigate = useNavigate();
+  const { programId } = useParams();
 
   useEffect(
     () =>
@@ -75,16 +78,17 @@ export function DemoPanel() {
         ) : (
           <ul className="space-y-1.5">
             {scenarios.map((s) => (
-              <li key={s.id} className="flex items-center gap-2 rounded-md border border-border p-2">
+              <li key={s.id} className="flex items-center gap-2 rounded-md border border-border p-2" data-testid={`scenario-${s.id}`}>
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{s.title}</div>
-                  <div className="text-[11.5px] text-subtle">Supplier email → AI proposal → approval → change request → report</div>
+                  <div className="text-[11.5px] text-subtle">{s.blurb}</div>
                 </div>
                 <Button
                   size="sm"
                   variant="primary"
                   onClick={() => {
                     useDemo.getState().start(s.id);
+                    if (s.programId !== programId) navigate(`/p/${s.programId}/briefing`);
                     void api.demo.run(s.id);
                   }}
                 >
