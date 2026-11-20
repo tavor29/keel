@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.108.1",
+    "@tanstack/react-virtual": "^3.14.26",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^27.2.2",

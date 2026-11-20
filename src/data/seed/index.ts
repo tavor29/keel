@@ -1,119 +1,109 @@
-// Phase 0 seed: people, programs, calendars, workstreams, memberships.
-// Plans, items, messages and scenarios arrive in phases 1–3 (see docs/demo-scenarios.md).
+// Demo seed: Titan-1 (full plan, phase 2) and Lumen AI (structure only until phase 3).
 // Everything here is fictional.
 import { SCHEMA_VERSION, type MockState } from '@/api/mock/state';
-import type { Calendar, Membership, Person, Program, Workstream } from '@/domain/types';
+import { addDays, toEpochDay, weekdayOf } from '@/domain/dates';
+import type { Calendar, Membership, Program, Workstream } from '@/domain/types';
+import { TITAN_AS_OF, titanCalendar, titanProgram } from './titan/plan';
+import { titanSeed } from './titan/seed';
 
 export const TITAN_ID = 'prg_titan';
 export const LUMEN_ID = 'prg_lumen';
 export const DEFAULT_PERSONA_ID = 'per_alex';
+export const PERSONA_IDS = ['per_alex', 'per_priya', 'per_sam', 'per_jordan', 'per_chris'];
 
-const people: Person[] = [
-  { id: 'per_alex', name: 'Alex Rivera', email: 'alex.rivera@keel.example', title: 'Program Manager', org: 'Keel Corp', avatarColor: '#1f5fbf', home: 'keel' },
-  { id: 'per_priya', name: 'Priya Nair', email: 'priya.nair@keel.example', title: 'Power Lead', org: 'Keel Corp', avatarColor: '#0f7b6c', home: 'teams' },
-  { id: 'per_sam', name: 'Sam Okafor', email: 'sam.okafor@keel.example', title: 'Engineer', org: 'Keel Corp', avatarColor: '#8a4baf', home: 'slack' },
-  { id: 'per_jordan', name: 'Jordan Lee', email: 'jordan.lee@keel.example', title: 'VP Infrastructure', org: 'Keel Corp', avatarColor: '#b4541a', home: 'email' },
-  { id: 'per_chris', name: 'Chris Wu', email: 'chris.wu@voltgrid.example', title: 'Account Manager', org: 'VoltGrid Switchgear', avatarColor: '#5b6575', home: 'email' },
-];
+const lumenCalendar: Calendar = {
+  id: 'cal_lumen',
+  name: 'Lumen AI (Mon–Fri)',
+  workWeek: [true, true, true, true, true, false, false],
+  holidays: ['2026-11-26', '2026-12-25', '2027-01-01', '2027-05-31'],
+};
 
-const calendars: Calendar[] = [
-  { id: 'cal_titan', name: 'Titan-1 site (Mon–Sat)', workWeek: [true, true, true, true, true, true, false], holidays: ['2026-12-25', '2027-01-01', '2027-05-31', '2027-07-05'] },
-  { id: 'cal_lumen', name: 'Lumen AI (Mon–Fri)', workWeek: [true, true, true, true, true, false, false], holidays: ['2026-12-25', '2027-01-01'] },
-];
+const lumenWorkstreams: Workstream[] = (
+  [
+    ['platform', 'Model Platform', 'agile', '#6d5bd0'],
+    ['webapp', 'Product & Web App', 'agile', '#1f5fbf'],
+    ['data', 'Data & Evaluation', 'agile', '#0f7b6c'],
+    ['infra', 'Infra & Security', 'scheduled', '#55657a'],
+    ['gtm', 'Go-to-Market', 'scheduled', '#b4541a'],
+  ] as const
+).map(([key, name, mode, color], i) => ({ id: `wst_lumen_${key}`, programId: LUMEN_ID, name, mode, leadId: 'per_priya', color, budgetCents: 0, order: i }));
 
-const M = 100_000_000; // $1M in cents
+const lumenProgram: Program = {
+  id: LUMEN_ID,
+  name: 'Lumen AI',
+  code: 'LUMEN',
+  description: 'AI SaaS platform public launch: agile workstreams on a milestone backbone.',
+  start: '2026-06-01',
+  calendarId: lumenCalendar.id,
+  currency: 'USD',
+  checkinCadence: { weekday: 1, enabled: true },
+  budgetCents: 0,
+};
 
-const titanWorkstreams: [string, string, Workstream['mode'], number, string][] = [
-  ['site', 'Site & Civil', 'scheduled', 12, '#7a6a55'],
-  ['power', 'Power', 'scheduled', 35, '#c98a00'],
-  ['cooling', 'Cooling', 'scheduled', 25, '#2b8fbf'],
-  ['network', 'Network', 'scheduled', 15, '#6d5bd0'],
-  ['compute', 'Compute Procurement', 'scheduled', 150, '#1f5fbf'],
-  ['rack', 'Rack & Stack', 'scheduled', 4, '#3c8c5a'],
-  ['software', 'Software Stack', 'agile', 3, '#b0457b'],
-  ['commissioning', 'Commissioning', 'scheduled', 3, '#a3532c'],
-  ['security', 'Security & Compliance', 'scheduled', 1.5, '#55657a'],
-  ['ops', 'Ops Readiness', 'scheduled', 1.5, '#4c7f8f'],
-];
-
-const lumenWorkstreams: [string, string, Workstream['mode'], number, string][] = [
-  ['platform', 'Model Platform', 'agile', 0, '#6d5bd0'],
-  ['webapp', 'Product & Web App', 'agile', 0, '#1f5fbf'],
-  ['data', 'Data & Evaluation', 'agile', 0, '#0f7b6c'],
-  ['infra', 'Infra & Security', 'scheduled', 0, '#55657a'],
-  ['gtm', 'Go-to-Market', 'scheduled', 0, '#b4541a'],
-];
-
-function toWorkstreams(programId: string, prefix: string, rows: typeof titanWorkstreams, leadId: string): Workstream[] {
-  return rows.map(([key, name, mode, budgetM, color], i) => ({
-    id: `wst_${prefix}_${key}`,
-    programId,
-    name,
-    mode,
-    leadId,
-    color,
-    budgetCents: Math.round(budgetM * M),
-    order: i,
-  }));
-}
-
-const workstreams: Workstream[] = [
-  ...toWorkstreams(TITAN_ID, 'titan', titanWorkstreams, 'per_priya'),
-  ...toWorkstreams(LUMEN_ID, 'lumen', lumenWorkstreams, 'per_priya'),
-];
-
-const programs: Program[] = [
-  {
-    id: TITAN_ID,
-    name: 'Titan-1',
-    code: 'TITAN',
-    description: 'HPC data center build — 10 workstreams, ~$250M, stage-gated.',
-    start: '2026-03-02',
-    calendarId: 'cal_titan',
-    currency: 'USD',
-    checkinCadence: { weekday: 1, enabled: true },
-    budgetCents: workstreams.filter((w) => w.programId === TITAN_ID).reduce((s, w) => s + w.budgetCents, 0),
-  },
-  {
-    id: LUMEN_ID,
-    name: 'Lumen AI',
-    code: 'LUMEN',
-    description: 'AI SaaS platform public launch — agile workstreams on a milestone backbone.',
-    start: '2026-06-01',
-    calendarId: 'cal_lumen',
-    currency: 'USD',
-    checkinCadence: { weekday: 1, enabled: true },
-    budgetCents: 0,
-  },
-];
-
-const memberships: Membership[] = [
-  { programId: TITAN_ID, personId: 'per_alex', role: 'pm', workstreamIds: [] },
-  { programId: TITAN_ID, personId: 'per_priya', role: 'lead', workstreamIds: ['wst_titan_power'] },
-  { programId: TITAN_ID, personId: 'per_sam', role: 'member', workstreamIds: ['wst_titan_rack'] },
-  { programId: TITAN_ID, personId: 'per_jordan', role: 'exec', workstreamIds: [] },
-  { programId: TITAN_ID, personId: 'per_chris', role: 'guest', workstreamIds: [] },
+const lumenMemberships: Membership[] = [
   { programId: LUMEN_ID, personId: 'per_alex', role: 'pm', workstreamIds: [] },
   { programId: LUMEN_ID, personId: 'per_priya', role: 'lead', workstreamIds: ['wst_lumen_infra'] },
   { programId: LUMEN_ID, personId: 'per_sam', role: 'member', workstreamIds: ['wst_lumen_platform'] },
   { programId: LUMEN_ID, personId: 'per_jordan', role: 'exec', workstreamIds: [] },
 ];
 
-export function createSeedState(): MockState {
-  // Fresh copies every time so reset() never shares references with live state.
-  return structuredClone({
+/** Whole weeks from the seed's "today" to the Monday of `now`'s week. */
+export function weeksToShift(now: Date, seedToday = TITAN_AS_OF): number {
+  const today = Math.floor(now.getTime() / 86_400_000);
+  const monday = today - weekdayOf(today);
+  return Math.round((monday - toEpochDay(seedToday)) / 7);
+}
+
+const ISO_ANYWHERE = /(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)/g;
+
+/**
+ * Shifts every ISO date in a JSON-like value by `days`, including dates embedded in
+ * text ("ship date 2027-03-03") and timestamps. The UI renders ISO dates in prose
+ * as friendly dates, so seed text stays correct after the shift.
+ */
+export function shiftDates<T>(value: T, days: number): T {
+  if (!days) return value;
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') return v.replace(ISO_ANYWHERE, (d) => addDays(d, days));
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    return v;
+  };
+  return walk(value) as T;
+}
+
+export function createSeedState(now: Date = new Date()): MockState {
+  const t = titanSeed();
+  const raw: MockState = {
     schemaVersion: SCHEMA_VERSION,
+    today: TITAN_AS_OF,
+    personaIds: PERSONA_IDS,
     currentPersonId: DEFAULT_PERSONA_ID,
-    people,
-    programs,
-    calendars,
-    workstreams,
-    memberships,
-    items: [],
-    relations: [],
+    rev: 0,
+    seq: 0,
+    people: t.people,
+    programs: [titanProgram, lumenProgram],
+    calendars: [titanCalendar, lumenCalendar],
+    workstreams: [...t.workstreams, ...lumenWorkstreams],
+    memberships: [...t.memberships, ...lumenMemberships],
+    items: t.items,
+    relations: t.relations,
+    baselines: [t.baseline],
+    sprints: [],
+    costEntries: t.costEntries,
     channels: [],
-    messages: [],
+    messages: t.messages,
+    mail: t.mail,
+    mailRules: [],
+    checkinRounds: t.checkinRounds,
+    proposals: t.proposals,
+    reports: [],
+    digest: t.digest,
     notifications: [],
     audit: [],
-  });
+  };
+  raw.programs[0] = { ...raw.programs[0]!, activeBaselineId: t.baseline.id };
+  // Evergreen demo: move the whole world so "today" is this week (weekdays preserved).
+  return shiftDates(structuredClone(raw), weeksToShift(now) * 7);
 }
+

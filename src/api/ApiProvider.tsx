@@ -3,7 +3,10 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ApiContext, createQueryClient } from './context';
 import type { KeelApi, KeelEvent } from './contract';
 
-/** Maps API events to cache invalidation. Grows as features add queries. */
+/**
+ * Maps API events to cache invalidation. Program-scoped queries live under
+ * ['p', programId] (src/api/queries.ts), so one key refreshes a program.
+ */
 function invalidationFor(e: KeelEvent): readonly unknown[][] | 'all' {
   switch (e.type) {
     case 'session.changed':
@@ -11,7 +14,23 @@ function invalidationFor(e: KeelEvent): readonly unknown[][] | 'all' {
       return 'all';
     case 'notification':
       return [['notifications']];
-    default:
+    case 'mail.received':
+      return [['mail']];
+    case 'message.posted':
+      return [['p', e.message.programId], ['mail']];
+    case 'proposal.created':
+    case 'proposal.decided':
+      return [['p', e.proposal.programId], ['notifications']];
+    case 'item.changed':
+    case 'schedule.recomputed':
+    case 'cost.changed':
+    case 'report.changed':
+    case 'document.changed':
+      return [['p', e.programId]];
+    case 'checkin.answered':
+    case 'sprint.changed':
+      return [['p']];
+    case 'demo.step':
       return [];
   }
 }

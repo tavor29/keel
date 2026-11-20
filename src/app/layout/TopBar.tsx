@@ -2,7 +2,7 @@ import { Bell, Check, Menu, Monitor, Moon, Search, Sparkles, Sun } from 'lucide-
 import { DropdownMenu, Popover } from 'radix-ui';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
-import { useMe, useMembers, useNotifications, useSwitchPersona } from '@/api/queries';
+import { useMe, useMembers, useNotifications, usePersonas, useSwitchPersona } from '@/api/queries';
 import { Button } from '@/ui/Button';
 import { cn } from '@/ui/cn';
 import { menuItem, menuLabel, popContent } from '@/ui/menu';
@@ -111,7 +111,10 @@ function PersonaMenu({ programId }: { programId: string }) {
   const { t } = useTranslation();
   const me = useMe().data;
   const switchPersona = useSwitchPersona();
-  const members = useMembers(programId).data;
+  const personas = usePersonas().data;
+  const allMembers = useMembers(programId).data;
+  // Demo personas who belong to this program (a full member list would be 80+ people).
+  const members = allMembers?.filter((m) => personas?.some((p) => p.id === m.personId));
   const myRole = me?.memberships.find((m) => m.programId === programId)?.role;
 
   return (

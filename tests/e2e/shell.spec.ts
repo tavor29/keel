@@ -8,7 +8,8 @@ test.beforeEach(async ({ page }) => {
 
 test('loads the shell on the Titan-1 briefing', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Briefing' })).toBeVisible();
-  await expect(page.getByText('Planned for phase 2')).toBeVisible();
+  await expect(page.getByText(/Good morning, Alex/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Stage gates' })).toBeVisible();
 });
 
 test('command palette navigates to the timeline', async ({ page }) => {

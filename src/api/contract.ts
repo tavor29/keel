@@ -4,7 +4,7 @@ import type {
   Baseline, Calendar, ChangeRequest, Channel, CheckinRequest, CheckinRound, CostEntry, DigestEntry,
   Impact, Item, ItemType, MailMessage, MailRule, Membership, Message, Notification, Person, PlanChange,
   Program, Proposal, Relation, ReportSection, ScheduledItem, Sprint, Status, StatusReport, Task, Workstream,
-  AuditEntry, CommsPlanRow, DocSection, DocumentKind, DocumentVersion, ProjectDocument, RaciLetter,
+  AuditEntry, Rag, CommsPlanRow, DocSection, DocumentKind, DocumentVersion, ProjectDocument, RaciLetter,
   RaciOverride, Requirement, Stakeholder,
 } from '@/domain/types';
 import type { EvmSnapshot } from '@/domain/evm';
@@ -12,6 +12,7 @@ import type { EvmSnapshot } from '@/domain/evm';
 export interface KeelApi {
   session: {
     me(): Promise<{ person: Person; memberships: Membership[] }>;
+    personas(): Promise<Person[]>;                               // demo only: the persona switcher list
     switchPersona(personId: string): Promise<void>;            // demo only
   };
 
@@ -43,7 +44,7 @@ export interface KeelApi {
   };
 
   schedule: {
-    get(programId: string): Promise<{ items: ScheduledItem[]; computedAt: string }>;
+    get(programId: string): Promise<ScheduleView>;
     baselines(programId: string): Promise<Baseline[]>;
     setBaseline(programId: string, name: string, reason?: string): Promise<Baseline>;
   };
@@ -167,6 +168,22 @@ export type NewItem = Partial<Item> & { type: ItemType; title: string; workstrea
 
 export type { EvmFigures, EvmSnapshot } from '@/domain/evm';
 
+export interface ScheduleView {
+  programId: string;
+  asOf: string;
+  computedAt: string;
+  projectFinish: string;
+  /** Leaves, summaries, procurement and agile delivery nodes. */
+  nodes: (ScheduledItem & { kind: 'leaf' | 'summary' | 'procurement' | 'agile_delivery'; deadlineFloatHalfDays: number | null })[];
+  procurement: Record<string, { delivery: string; needBy: string; orderBy: string; floatDays: number; deadlineFloatDays: number | null }>;
+  criticalEdges: { from: string; to: string }[];
+  rag: { items: Record<string, Rag>; workstreams: Record<string, Rag>; program: Rag };
+  wbs: Record<string, string>;
+  /** Working days vs the active baseline; positive = late. */
+  variance: Record<string, { startDays: number; finishDays: number }>;
+  baselineId?: string;
+}
+
 export interface RenderedDocument {
   documentId: string;
   version: number | 'live';
@@ -204,7 +221,8 @@ export type KeelEvent =
   | { type: 'cost.changed'; programId: string }
   | { type: 'notification'; notification: Notification }
   | { type: 'document.changed'; programId: string; documentId: string }
-  | { type: 'demo.step'; scenarioId: string; step: number; caption: string }
+  | { type: 'demo.step'; scenarioId: string; step: number; caption: string; hint?: string; waiting?: boolean; done?: boolean }
+  | { type: 'report.changed'; programId: string; reportId: string }
   | { type: 'session.changed'; personId: string }   // persona switch: all cached data may change
   | { type: 'demo.reset' };                          // state reseeded: all cached data is stale
 

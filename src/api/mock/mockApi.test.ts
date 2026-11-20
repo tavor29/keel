@@ -84,11 +84,11 @@ describe('mock KeelApi', () => {
 
   it('marks later-phase methods as not implemented, with their phase', async () => {
     const api = createMockApi({ ...fast, store: null });
-    const err = await api.items.list(TITAN_ID).catch((e: unknown) => e);
+    const err = await api.agile.sprints('wst_titan_software').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(NotImplementedError);
-    expect(err).toMatchObject({ method: 'items.list', phase: 2 });
+    expect(err).toMatchObject({ method: 'agile.sprints', phase: 3 });
     // Namespaces must not look like Promises.
-    expect((api.items as unknown as { then?: unknown }).then).toBeUndefined();
+    expect((api.agile as unknown as { then?: unknown }).then).toBeUndefined();
   });
 
   it('simulates latency by default', async () => {

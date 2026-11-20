@@ -37,7 +37,7 @@ Waterfall, cost-loaded, critical path, stage gates. **Calendar:** Mon–Sat. **B
 
 **Stage gates:** G0 Design freeze → G1 Shell complete → **G2 Energization** (contractual deadline) → G3 Mechanical completion → G4 Integrated systems test (L5) → G5 Acceptance and go-live.
 
-**Seeded state at "today":** about 40% through, CPI 0.97, SPI 0.96, two amber workstreams (Cooling, Network), a baseline set at G0, 25 open RAID entries, 3 decided change requests, one pending.
+**Seeded state at "today":** about 40% through. CPI 0.97 (Cooling 0.93 and Network 0.95 show amber on the cost tiles), SPI ≈ 1.0. Contract baseline set at G0 (switchgear B was due mid-February; Cooling and Network were planned 10% faster, so they show variance). 5 open risks, 3 approved change requests (CR-012 to CR-014), a pending proposal from last week's check-in, and three unfiled emails.
 
 ### Scenario T1: "The switchgear slip" (hero, about 2 min)
 
@@ -45,10 +45,10 @@ Waterfall, cost-loaded, critical path, stage gates. **Calendar:** Mon–Sat. **B
 |---|---|---|
 | 1 | Email from Chris Wu (VoltGrid) arrives in Alex's synced mailbox: *"MV switchgear lineup B failed factory acceptance test; revised ship date Mar 24 (was Mar 3)."* | Mail triage badge. Suggestion: **file to "MV switchgear lineup B" (PRC), 93% confidence**, because the PO number and supplier domain match |
 | 2 | Alex clicks **File & share** | The email appears in the procurement item's stream, visible to the Power workstream |
-| 3 | AI proposal created: *set_delivery +21 calendar days* (18 working days on the 6-day week) | Inline chip on the email plus a Briefing card. Impact: "Switchgear install → Energization G2 **+12 working days** (6 absorbed by float). **G2 misses its deadline by 4 days.** Critical path now runs through Power. SPI 0.96 → 0.93" |
+| 3 | AI proposal created: *set_delivery +21 calendar days* (18 working days on the 6-day week) | Inline chip on the email plus a Briefing card. Impact: "G2 · Energization **+18 working days**, green → **red**" (slack 14 days → **4 days late**). The critical path changes |
 | 4 | Alex approves | Timeline animates: bars shift, the critical path is re-highlighted, G2 turns **red**. A system message is posted on the thread: "Applied: …" |
 | 5 | Check-in reply from Priya (via Teams): *"At risk. We can recover 5 days with weekend crews and a second install team, about $120k."* | The check-in answer lands on the install task |
-| 6 | AI drafts **change request CR-015**: cost +$120k, schedule −5 days on install | CR card with impact preview: G2 back to **amber**, 1 day of float. Needs exec approval |
+| 6 | AI drafts **change request CR-015**: cost +$120k, install duration −5 days | CR card with impact preview: G2 **red → amber**, 1 day of slack. Needs exec approval |
 | 7 | Persona switch to Jordan Lee (exec) → **Approve** | CR applied, budget updated, **rebaseline** "CR-015" recorded with audit trail |
 | 8 | Back to Alex → **Status report → Refresh draft** | New lines: "Switchgear B FAT failure (VoltGrid) delayed delivery 3 weeks; recovered 5 days via CR-015 (+$120k); G2 Energization amber, 1 day float." Each line links to the email, the proposal and the CR |
 

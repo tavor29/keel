@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, Outlet, useParams } from 'react-router';
 import { usePrograms } from '@/api/queries';
+import { DemoPanel } from '@/features/demo/DemoPanel';
 import { CommandPalette } from '../CommandPalette';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -46,6 +47,7 @@ export function AppShell() {
         </main>
       </div>
       <CommandPalette />
+      <DemoPanel />
     </div>
   );
 }

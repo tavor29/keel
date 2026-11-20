@@ -34,6 +34,18 @@ const WS_META: [TitanWsKey, string, Workstream['mode'], number, string][] = [
   ['ops', 'Ops Readiness', 'scheduled', 1.5, '#4c7f8f'],
 ];
 
+export const titanProgram: Program = {
+  id: TITAN_PROGRAM_ID,
+  name: 'Titan-1',
+  code: 'TITAN',
+  description: 'HPC data center build: 10 workstreams, $250M, stage-gated.',
+  start: TITAN_START,
+  calendarId: titanCalendar.id,
+  currency: 'USD',
+  checkinCadence: { weekday: 1, enabled: true },
+  budgetCents: WS_META.reduce((s, [, , , m]) => s + m * 100_000_000, 0),
+};
+
 /** Progress lag per workstream at the as-of date (1 = exactly on plan). Cooling and Network run behind. */
 const PROGRESS_FACTOR: Partial<Record<TitanWsKey, number>> = { cooling: 0.82, network: 0.86, site: 0.97, power: 0.95 };
 
@@ -162,7 +174,7 @@ export function buildTitan(): PlanState & { team: ReturnType<typeof titanTeam> }
     b.gate('g2', 'G2 · Energization', {
       after: ['energize', 'gen_loadbank'],
       owner: lead('power'),
-      deadline: '2027-04-08',
+      deadline: '2027-04-14',
       approvers,
       entry: ['MV acceptance tests passed', 'Substation tested', 'Generator load-bank complete'],
       exit: ['Permanent power available to halls', 'Utility energization certificate'],
@@ -385,17 +397,7 @@ export function buildTitan(): PlanState & { team: ReturnType<typeof titanTeam> }
     });
   });
 
-  const program: Program = {
-    id: TITAN_PROGRAM_ID,
-    name: 'Titan-1',
-    code: 'TITAN',
-    description: 'HPC data center build — 10 workstreams, ~$250M, stage-gated.',
-    start: TITAN_START,
-    calendarId: titanCalendar.id,
-    currency: 'USD',
-    checkinCadence: { weekday: 1, enabled: true },
-    budgetCents: WS_META.reduce((s, [, , , m]) => s + m * 100_000_000, 0),
-  };
+  const program: Program = { ...titanProgram };
   const workstreams: Workstream[] = WS_META.map(([key, name, mode, budgetM, color], order) => ({
     id: WS[key],
     programId: TITAN_PROGRAM_ID,
@@ -464,8 +466,8 @@ function applyProgress(plan: PlanState) {
     else if (n.slots.es >= t) planned = 0;
     else planned = (t - n.slots.es) / (n.slots.ef - n.slots.es);
     // Lagging workstreams leave recently finished work incomplete too.
-    const recent = n.slots.ef > t - 20 && n.slots.ef <= t;
-    const pct = planned === 1 && !(recent && factor < 0.9) ? 100 : Math.floor(planned * factor * 100);
+    const recent = n.slots.ef > t - 60 && n.slots.ef <= t;
+    const pct = planned === 1 && !(recent && factor < 1) ? 100 : Math.floor(planned * factor * 100);
     item.percentComplete = Math.min(100, Math.max(0, pct));
     item.status = item.percentComplete >= 100 ? 'done' : item.percentComplete > 0 ? 'in_progress' : 'not_started';
   }
