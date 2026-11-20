@@ -1,6 +1,6 @@
 import { createSeedState } from '@/data/seed';
-import { can, type Action } from '@/domain/permissions';
-import type { Membership, Program } from '@/domain/types';
+import { actorFrom, can, type Action, type Actor } from '@/domain/permissions';
+import type { Program } from '@/domain/types';
 import type { KeelApi, KeelEvent } from '../contract';
 import { ForbiddenError, NotFoundError, NotImplementedError } from '../errors';
 import { createEventBus } from './eventBus';
@@ -71,13 +71,13 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     return person;
   };
 
-  const membershipIn = (s: MockState, programId: string): Membership | undefined =>
-    s.memberships.find((m) => m.programId === programId && m.personId === s.currentPersonId);
+  const actorIn = (s: MockState, programId: string): Actor | undefined =>
+    actorFrom(s.memberships.find((m) => m.programId === programId && m.personId === s.currentPersonId));
 
   const requireProgram = (s: MockState, programId: string, action: Action): Program => {
     const program = s.programs.find((p) => p.id === programId);
     if (!program) throw new NotFoundError(`program ${programId}`);
-    if (!can(membershipIn(s, programId)?.role, action)) throw new ForbiddenError(`${action} on ${programId}`);
+    if (!can(actorIn(s, programId), action)) throw new ForbiddenError(`${action} on ${programId}`);
     return program;
   };
 
@@ -95,7 +95,7 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     },
 
     programs: {
-      list: () => read((s) => s.programs.filter((p) => can(membershipIn(s, p.id)?.role, 'program.view'))),
+      list: () => read((s) => s.programs.filter((p) => can(actorIn(s, p.id), 'program.view'))),
       get: (id) => read((s) => requireProgram(s, id, 'program.view')),
       calendar: (programId) =>
         read((s) => {
@@ -174,6 +174,7 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     conversation: planned('conversation', 2),
     agile: planned('agile', 3),
     cost: planned('cost', 4),
+    documents: planned('documents', 4),
     ai: planned('ai', 5),
     connectors: planned('connectors', 5),
     io: planned('io', 5),

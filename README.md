@@ -4,7 +4,7 @@
 
 Keel is a web app for program managers running multi-team, high-tech programs. It combines MS Project-grade scheduling (critical path, baselines, stage gates), Monday-style boards, and the conversation that usually lives in Slack and email. AI turns what people say into proposed plan changes, shows their impact, and lets the PM approve them in one click.
 
-> Status: **Phase 0 (foundations) done**: app shell, design tokens, mock API skeleton, tests and CI. Next: [Phase 1, the domain core](docs/build-plan.md).
+> Status: **Phases 0–1 done**: app shell, mock API skeleton, and the domain core (calendar, CPM with deadline float, procurement, agile projection, baselines, RAG, EVM, impact previews, permissions, MS Project XML import/export) with the Titan-1 seed plan. Next: [Phase 2, the hero slice](docs/build-plan.md).
 
 ## Develop
 

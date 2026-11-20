@@ -4,8 +4,10 @@ import type {
   Baseline, Calendar, ChangeRequest, Channel, CheckinRequest, CheckinRound, CostEntry, DigestEntry,
   Impact, Item, ItemType, MailMessage, MailRule, Membership, Message, Notification, Person, PlanChange,
   Program, Proposal, Relation, ReportSection, ScheduledItem, Sprint, Status, StatusReport, Task, Workstream,
-  AuditEntry,
+  AuditEntry, CommsPlanRow, DocSection, DocumentKind, DocumentVersion, ProjectDocument, RaciLetter,
+  RaciOverride, Requirement, Stakeholder,
 } from '@/domain/types';
+import type { EvmSnapshot } from '@/domain/evm';
 
 export interface KeelApi {
   session: {
@@ -127,6 +129,24 @@ export interface KeelApi {
     exportCsv(programId: string): Promise<string>;
   };
 
+  documents: {
+    list(programId: string): Promise<ProjectDocument[]>;
+    get(id: string): Promise<ProjectDocument>;
+    create(programId: string, kind: DocumentKind): Promise<ProjectDocument>;          // from the kind's template
+    updateSection(id: string, sectionId: string, patch: Pick<DocSection, 'title' | 'body'>): Promise<ProjectDocument>; // approved → new draft version
+    submit(id: string): Promise<ProjectDocument>;
+    decide(id: string, decision: 'approve' | 'reject', note?: string): Promise<ProjectDocument>; // all approve → frozen version
+    versions(id: string): Promise<DocumentVersion[]>;
+    render(id: string, version?: number): Promise<RenderedDocument>;                 // live now, or a frozen version
+    drift(id: string): Promise<DocDrift>;                                            // latest approved vs now
+    acknowledgeDrift(id: string, note?: string): Promise<ProjectDocument>;
+    requirements(programId: string): Promise<Requirement[]>;
+    upsertRequirement(r: Omit<Requirement, 'id'> & { id?: string }): Promise<Requirement>;
+    raci(id: string): Promise<RaciMatrix>;                                           // derived + overrides + problems
+    setRaci(o: RaciOverride): Promise<void>;
+    stakeholders(programId: string): Promise<{ stakeholders: Stakeholder[]; comms: CommsPlanRow[] }>;
+  };
+
   audit: { list(programId: string, q?: { targetId?: string }): Promise<AuditEntry[]> };
 
   demo: {
@@ -145,9 +165,26 @@ export interface ItemQuery {
 }
 export type NewItem = Partial<Item> & { type: ItemType; title: string; workstreamId: string };
 
-export interface EvmFigures { bacCents: number; pvCents: number; evCents: number; acCents: number;
-  committedCents: number; cpi: number | null; spi: number | null; eacCents: number; etcCents: number; vacCents: number }
-export interface EvmSnapshot { asOf: string; program: EvmFigures; byWorkstream: Record<string, EvmFigures> }
+export type { EvmFigures, EvmSnapshot } from '@/domain/evm';
+
+export interface RenderedDocument {
+  documentId: string;
+  version: number | 'live';
+  sections: { id: string; title: string; kind: DocSection['kind']; body?: string; data?: unknown }[];
+}
+export interface DocDrift {
+  approvedVersion: number | null;
+  changedSectionIds: string[];
+  /** A gate/milestone moved past its approved date, or EAC moved > 5%. */
+  material: boolean;
+  summary: string[];                  // "G2 Energization +12 working days"
+}
+export interface RaciMatrix {
+  rows: { itemId: string; title: string }[];
+  people: { personId: string; name: string }[];
+  cells: Record<string, Record<string, { letters: RaciLetter[]; overridden: boolean }>>;
+  problems: { itemId: string; kind: 'no_accountable' | 'multiple_accountable' | 'no_responsible' }[];
+}
 
 export type ConnectorKind = 'jira' | 'github' | 'outlook' | 'gmail' | 'slack' | 'teams';
 export interface ConnectorStatus { kind: ConnectorKind; state: 'disconnected' | 'connected' | 'error'; account?: string; lastSyncAt?: string }
@@ -166,6 +203,7 @@ export type KeelEvent =
   | { type: 'sprint.changed'; sprintId: string }
   | { type: 'cost.changed'; programId: string }
   | { type: 'notification'; notification: Notification }
+  | { type: 'document.changed'; programId: string; documentId: string }
   | { type: 'demo.step'; scenarioId: string; step: number; caption: string }
   | { type: 'session.changed'; personId: string }   // persona switch: all cached data may change
   | { type: 'demo.reset' };                          // state reseeded: all cached data is stale

@@ -34,6 +34,7 @@ export interface Program {
   name: string;
   code: string;               // "TITAN", "LUMEN"
   description: string;
+  start: string;              // ISO date; slot 0 = AM of the first working day on/after this
   calendarId: string;
   currency: 'USD';
   checkinCadence: { weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7; enabled: boolean };
@@ -341,6 +342,88 @@ export interface DigestEntry {                    // "what changed since you las
   group: 'schedule' | 'rag' | 'risk' | 'decision' | 'budget' | 'sprint' | 'people';
   text: string; itemIds: string[]; sourceIds: string[];
 }
+
+// ───────────────────────── Documents (docs/documents.md) ─────────────────────────
+export type DocumentKind = 'charter' | 'brd' | 'raci' | 'stakeholders';
+export type LiveSource =
+  | 'sponsor' | 'milestones' | 'budget' | 'team' | 'top_risks'
+  | 'requirements' | 'raci' | 'stakeholders' | 'comms_plan';
+
+export interface DocSection {
+  id: string;
+  title: string;
+  kind: 'narrative' | 'live';
+  body?: string;                       // narrative: markdown
+  live?: { source: LiveSource; filter?: Record<string, unknown> };   // live: a binding, not content
+}
+
+/** Named ProjectDocument to avoid clashing with the DOM's global Document type. */
+export interface ProjectDocument {
+  id: string;                          // doc_…
+  programId: string;
+  kind: DocumentKind;
+  title: string;
+  ownerId: string;
+  approverIds: string[];
+  sharedWithGuestIds: string[];
+  sections: DocSection[];              // working copy
+  state: 'draft' | 'in_review' | 'approved';
+  version: number;                     // working version number
+  approvals: { personId: string; decision: 'approve' | 'reject'; at: string; note?: string }[];
+  approvedVersion?: number;            // latest approved version
+  driftAcknowledged?: { version: number; at: string; byId: string; note?: string };
+  attachments: { id: string; name: string; mime: string; sizeBytes: number; url?: string; addedById: string; addedAt: string }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A frozen approved version: live sections are stored as their rendered data at approval time. */
+export interface DocumentVersion {
+  id: string;                          // dver_…
+  documentId: string;
+  version: number;
+  approvedAt: string;
+  approverIds: string[];
+  sections: (DocSection & { rendered?: unknown })[];
+}
+
+export interface Requirement {
+  id: string;                          // req_…
+  programId: string;
+  documentId: string;
+  code: string;                        // "BR-001"
+  statement: string;
+  rationale?: string;
+  priority: 'must' | 'should' | 'could' | 'wont';
+  status: 'proposed' | 'approved' | 'in_delivery' | 'met' | 'dropped';
+  ownerId?: string;
+  tracedItemIds: string[];             // plan items that deliver it
+}
+
+export type RaciLetter = 'R' | 'A' | 'C' | 'I';
+/** Manual override of a derived RACI cell; [] = explicitly none. */
+export interface RaciOverride { documentId: string; itemId: string; personId: string; letters: RaciLetter[] }
+
+export interface Stakeholder {
+  id: string;                          // stk_…
+  programId: string;
+  personId?: string;                   // a member or guest…
+  name?: string; org?: string; role?: string;   // …or someone outside Keel
+  influence: 1 | 2 | 3 | 4 | 5;
+  interest: 1 | 2 | 3 | 4 | 5;
+  attitude: 'champion' | 'supporter' | 'neutral' | 'skeptic' | 'blocker';
+}
+
+export interface CommsPlanRow {
+  id: string;                          // com_…
+  programId: string;
+  audience: string;
+  message: string;
+  channel: 'meeting' | 'email' | 'keel' | 'slack' | 'teams' | 'report';
+  cadence: 'weekly' | 'biweekly' | 'monthly' | 'per_gate' | 'ad_hoc';
+  ownerId: string;
+  nextDue?: string;
+}
 ```
 
 ## Computed values (owned by `domain/`)
@@ -354,4 +437,6 @@ export interface DigestEntry {                    // "what changed since you las
 | Agile projection | `projectWorkstream(sprints, backlog)` |
 | EVM | `evm(program, items, schedule, costEntries, asOf)` |
 | Impact | `impact(state, changes)`, which applies changes to a copy, re-schedules and diffs |
-| Permissions | `can(person, membership, action, resource)` |
+| Permissions | `can(actor, action, resource)` |
+| Deadline float | `schedule()`: second backward pass against deadlines only (drives RAG) |
+| Document drift, RACI derivation | phase 4 (docs/documents.md) |

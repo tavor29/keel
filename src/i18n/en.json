@@ -11,6 +11,7 @@
     "mail": "Mail triage",
     "report": "Status report",
     "raid": "RAID log",
+    "documents": "Documents",
     "settings": "Settings",
     "workstreams": "Workstreams",
     "program": "Program",
@@ -78,6 +79,10 @@
     "raid": {
       "title": "RAID log",
       "body": "Risks, assumptions, issues and decisions, with a risk heat map."
+    },
+    "documents": {
+      "title": "Documents",
+      "body": "Living project documents: charter, BRD, RACI matrix, and stakeholder & comms plan. Live sections stay current with the plan, and sign-off freezes each approved version."
     },
     "settings": {
       "title": "Settings",

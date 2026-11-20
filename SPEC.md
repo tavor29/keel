@@ -121,7 +121,7 @@ Proposals show **inline** (a chip under the triggering message) **and** in the *
 
 ## 6. Screens
 
-All nine screens are in v1. Global chrome: left nav (program switcher, screens), top bar (search / **Ctrl+K command palette**, Ask Keel, notifications inbox, persona switcher in demo mode, theme toggle).
+All ten screens are in v1 (Documents added 2026-11-20). Global chrome: left nav (program switcher, screens), top bar (search / **Ctrl+K command palette**, Ask Keel, notifications inbox, persona switcher in demo mode, theme toggle).
 
 ### 6.1 Briefing (home)
 The PM's start-of-day screen; replaces "unread counts".
@@ -169,6 +169,9 @@ Auto-drafted weekly report, editable before publishing.
 ### 6.7 RAID log
 Table views of Risks, Assumptions, Issues, Decisions (tabs), plus a **risk heat map** (probability × impact). Filters, sorting, inline edit, link to mitigating items.
 
+### 6.7b Documents (living project documents)
+Project charter, BRD/requirements, RACI matrix, and stakeholder & communications plan, **authored in Keel**. **Live sections** (milestones, budget, team, top risks, requirements traceability, RACI, stakeholders) render from plan data at view time, so they're always current. **Narrative sections** are written by people. **Sign-off** (draft → in review → approved vN) freezes a rendered copy, and later changes show as **drift** ("Changed since v3"). Material drift (a gate slips past its approved date, EAC moves > 5%) puts "start re-approval?" on the Briefing. Version history, compare, attachments, and PDF/Markdown export. RACI cells are derived from owners, leads, approvers and followers, with overrides and validation (exactly one A, at least one R). Full design: [docs/documents.md](docs/documents.md).
+
 ### 6.8 Boards and tables
 - **Board** (kanban) by status / owner / workstream; for agile workstreams: **sprint board**, **backlog** (drag into sprint), **burndown** and **velocity** charts.
 - **Table** (Monday-style) with grouping and custom-ish columns (from a fixed set of fields in v1).
@@ -191,7 +194,7 @@ Responsive **read-only** for: Briefing, status report, item threads (with replyi
 - **Durations** in working days, half-day granularity. **One working calendar per program** (work week + holidays; HPC program uses a 6-day week).
 - **Dependencies:** FS and SS with lag (positive or negative, working days).
 - **Auto-rescheduling** on any change; tasks may be **pinned** (manual dates) or use a **start-no-earlier-than** constraint.
-- **Critical path** via CPM forward/backward pass; total float per item; milestone **deadlines** produce negative float when missed.
+- **Critical path** via CPM forward/backward pass; total float per item; milestone **deadlines** produce negative float when missed. **Deadline float** (slack against the nearest downstream deadline) drives RAG.
 - **Baselines:** one active baseline per program (re-baselining happens through approved change requests, or by the PM with a recorded reason; history is kept); variance shown in grid and as ghost bars.
 - **Resources:** assignments with allocation %; workload heatmap; **no auto-leveling**.
 - **Agile roll-up:** a sprint-run workstream contributes a summary span (first sprint start → projected completion from velocity) that can be a predecessor of milestones.
@@ -261,7 +264,7 @@ Two seeded programs, five personas, scripted scenarios. Full scripts: [docs/demo
 | Program | Method | Scale |
 |---|---|---|
 | **Lumen AI** — AI SaaS platform public launch | Agile workstreams + release milestone backbone | ~150 items, 5 workstreams, 25 people |
-| **Titan-1** — HPC data center build | Waterfall, critical path, stage gates, cost-loaded | ~600 tasks, 10 workstreams, 80+ people (incl. contractors), ~$250M |
+| **Titan-1** — HPC data center build | Waterfall, critical path, stage gates, cost-loaded | ~530 items (~490 tasks), 10 workstreams, 80+ people (incl. contractors), ~$250M |
 
 Demo controls (visible in a collapsible "Demo" panel):
 - **Persona switcher:** PM · workstream lead · exec viewer · supplier guest (+ member).
@@ -351,6 +354,7 @@ Real backend + SSO + real connectors · mobile companion app · PPTX export · c
 | [docs/scheduling.md](docs/scheduling.md) | Calendar, CPM, baselines, procurement dates, agile projection, EVM, test matrix |
 | [docs/ai.md](docs/ai.md) | Provider interface, features, proposal model, BYOK, scripted provider |
 | [docs/demo-scenarios.md](docs/demo-scenarios.md) | Programs, workstreams, personas, scenario scripts |
+| [docs/documents.md](docs/documents.md) | Living project documents: charter, BRD, RACI, stakeholder & comms plan |
 | [docs/backend.md](docs/backend.md) | Future backend architecture (one page) |
 | [docs/build-plan.md](docs/build-plan.md) | Phases and exit criteria |
 | [docs/adr/](docs/adr/) | Architecture decision records |

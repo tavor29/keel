@@ -17,7 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "check": "npm run lint && npm run typecheck && npm run test"
+    "check": "npm run lint && npm run typecheck && npm run test",
+    "seed:titan": "tsx --tsconfig tsconfig.app.json scripts/generate-titan.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.108.1",
@@ -50,6 +51,7 @@
     "globals": "^17.14.0",
     "jsdom": "^31.0.1",
     "tailwindcss": "^4.3.5",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.73.0",
     "vite": "^8.3.8",

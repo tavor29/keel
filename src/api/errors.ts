@@ -1,28 +1,11 @@
-export class KeelError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
+import { DomainError } from '@/domain/errors';
+
+export { CycleError, ValidationError } from '@/domain/errors';
+
+export class KeelError extends DomainError {}
 
 export class ForbiddenError extends KeelError {}
 export class NotFoundError extends KeelError {}
-
-export class ValidationError extends KeelError {
-  readonly fieldErrors: Record<string, string>;
-  constructor(message: string, fieldErrors: Record<string, string> = {}) {
-    super(message);
-    this.fieldErrors = fieldErrors;
-  }
-}
-
-export class CycleError extends KeelError {
-  readonly path: string[];
-  constructor(path: string[]) {
-    super(`Relation would create a cycle: ${path.join(' → ')}`);
-    this.path = path;
-  }
-}
 
 export class ConflictError extends KeelError {}
 

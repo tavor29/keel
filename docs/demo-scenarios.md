@@ -18,7 +18,9 @@ The persona switcher defaults to Alex Rivera (PM).
 
 ## Program A — Titan-1: HPC data center build
 
-Waterfall, cost-loaded, critical path, stage gates. **Calendar:** Mon–Sat. **Budget:** about $250M. **About 600 tasks, 10 workstreams, 80+ people** (including contractor crews and supplier guests).
+Waterfall, cost-loaded, critical path, stage gates. **Calendar:** Mon–Sat. **Budget:** $250M. **About 530 items (≈490 tasks, 16 procurement items, 6 gates), 660 dependencies, 10 workstreams, 83 people** (including contractor crews and a supplier guest). Defined in `src/data/seed/titan/plan.ts`, generated into `titan-1.xml` by `npm run seed:titan`.
+
+**Dates.** The generator's "today" is 2026-11-16. When the demo loads, it shifts every date by whole weeks so that "today" lands in the visitor's current week (weekdays and float are unchanged).
 
 | Workstream | Mode | Budget | Highlights |
 |---|---|---|---|
@@ -49,6 +51,8 @@ Waterfall, cost-loaded, critical path, stage gates. **Calendar:** Mon–Sat. **B
 | 6 | AI drafts **change request CR-015**: cost +$120k, schedule −5 days on install | CR card with impact preview: G2 back to **amber**, 1 day of float. Needs exec approval |
 | 7 | Persona switch to Jordan Lee (exec) → **Approve** | CR applied, budget updated, **rebaseline** "CR-015" recorded with audit trail |
 | 8 | Back to Alex → **Status report → Refresh draft** | New lines: "Switchgear B FAT failure (VoltGrid) delayed delivery 3 weeks; recovered 5 days via CR-015 (+$120k); G2 Energization amber, 1 day float." Each line links to the email, the proposal and the CR |
+
+9. **Documents tie-in:** the Briefing now shows *"Charter v3 is out of date: G2 Energization moved past its approved date. Start re-approval?"* Opening the charter highlights the drifted Milestones section against v3.
 
 Guest view, optional: switch to Chris Wu. They see **only** the switchgear procurement item and its thread, with no budget figures.
 

@@ -2,6 +2,7 @@ import {
   CalendarRange,
   ClipboardList,
   FileText,
+  Files,
   Inbox,
   KanbanSquare,
   MessagesSquare,
@@ -10,7 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export type ScreenKey = 'briefing' | 'timeline' | 'boards' | 'channels' | 'mail' | 'report' | 'raid' | 'settings';
+export type ScreenKey = 'briefing' | 'timeline' | 'boards' | 'channels' | 'mail' | 'report' | 'raid' | 'documents' | 'settings';
 
 export interface Screen {
   key: ScreenKey;
@@ -28,6 +29,7 @@ export const screens: Screen[] = [
   { key: 'mail', icon: Inbox, phase: 2 },
   { key: 'report', icon: FileText, phase: 2 },
   { key: 'raid', icon: ShieldAlert, phase: 4 },
+  { key: 'documents', icon: Files, phase: 4 },
   { key: 'settings', icon: Settings, phase: 5 },
 ];
 

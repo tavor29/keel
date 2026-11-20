@@ -54,6 +54,8 @@ critical   = totalFloat <= 0
 
 A deadline earlier than the early finish gives negative float on the milestone and everything driving it. That's how "Energization gate misses its contractual date by 6 days" shows up.
 
+**Deadline float.** A second backward pass uses *only* deadlines, with no program-finish anchor: `deadlineFloat = LS_deadline − ES`, or none when no deadline is downstream. Total float answers "is this on the longest path?". Deadline float answers "how close is this to breaking a committed date?". RAG uses deadline float, because the longest path always has zero total float by definition and would otherwise be permanently amber.
+
 The **critical path** is the set of critical nodes. The Gantt highlights them and the edges between two critical nodes whose constraint is *driving* (`ES(s) == EF(p) + L` for FS, `ES(s) == ES(p) + L` for SS).
 
 ## 5. Procurement nodes
@@ -66,7 +68,7 @@ A procurement item is a **fixed-date node** representing delivery:
   - **needBy** = `toDate(LS, 'start')`, the latest delivery that doesn't push any deadline or the program finish
   - **orderBy** = `needBy − leadTimeDays` (calendar days)
   - **floatDays** = working days between delivery and needBy (negative = delivery is late and is delaying the plan)
-- RAG: green if float ≥ 10 working days, amber if 0–9, red if < 0 or `deliveryStatus = 'delayed'` with no new date.
+- RAG uses deadline float (§4): green ≥ 10 working days, amber 0–9, red < 0 or `deliveryStatus = 'delayed'` with no new date. Total float (`floatDays`) still drives need-by.
 
 ## 6. Agile delivery nodes
 
@@ -110,7 +112,7 @@ Burndown comes from `Sprint.burndown` (seeded in the demo, appended on item stat
 
 ## 10. RAG roll-up
 
-- Item (schedulable): **red** if float < 0, or blocked on the critical path. **Amber** if float < 10 half-days (5 days), or the latest check-in is `at_risk`. Otherwise **green**. A manual `rag` overrides it, shown with an "overridden" marker.
+- Item (schedulable): **red** if deadline float (§4) < 0, or blocked on the critical path. **Amber** if deadline float < 10 half-days (5 days), the latest check-in is `at_risk`, or the item is blocked. Otherwise **green**. Items with no deadline downstream are green on schedule grounds. A manual `rag` overrides it, shown with an "overridden" marker.
 - Summary, workstream and program: the worst child among critical items. Otherwise amber if > 20% of children are amber or worse. Otherwise green.
 
 ## 11. Workload
