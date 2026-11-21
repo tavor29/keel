@@ -6,10 +6,11 @@ import { suggestPromotion, type PromotionDraft } from '@/domain/promotion';
 import { actorFrom, can, type Action, type Actor, type Resource } from '@/domain/permissions';
 import { draftReport } from '@/domain/report';
 import { computeWorkload } from '@/domain/workload';
+import { wouldCreateCycle } from '@/domain/scheduling/cpm';
 import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, ProjectDocument, Program, Proposal, StatusReport, Task } from '@/domain/types';
 import type { DocAttention } from '../contract';
 import type { KeelApi, KeelEvent } from '../contract';
-import { ForbiddenError, NotFoundError, NotImplementedError, ValidationError } from '../errors';
+import { CycleError, ForbiddenError, NotFoundError, NotImplementedError, ValidationError } from '../errors';
 import { applyToState, createComputer, docContext, newId, previewImpact, rebaseline, toView } from './engine';
 import { deriveRaci, documentDrift, freezeVersion, renderDocument } from '@/domain/documents';
 import { addDays as addCalendarDays } from '@/domain/dates';
@@ -268,6 +269,26 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
   };
   const scenarios = createScenarioRunner(host);
 
+  /**
+   * Plan edits are validated by rescheduling: if the program can't be scheduled
+   * afterwards (dependency on a summary, cycle…), the edit is rolled back.
+   */
+  function planEdit<T>(s: MockState, programId: string, mutate: () => T): T {
+    const items = structuredClone(s.items);
+    const relations = structuredClone(s.relations);
+    const result = mutate();
+    s.rev += 1;
+    try {
+      compute(s, programId);
+    } catch (err) {
+      s.items = items;
+      s.relations = relations;
+      s.rev += 1;
+      throw err instanceof Error ? new ValidationError(err.message) : err;
+    }
+    return result;
+  }
+
   const findDoc = (s: MockState, id: string): ProjectDocument => {
     const d = s.documents.find((x) => x.id === id);
     if (!d) throw new NotFoundError(`document ${id}`);
@@ -356,13 +377,81 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
             const item = findItem(s, id);
             if (!can(actorIn(s, item.programId), 'item.edit', item)) throw new ForbiddenError(`item.edit on ${id}`);
             const { id: _i, type: _t, programId: _p, ...rest } = patch as Record<string, unknown>;
-            Object.assign(item, rest, { updatedAt: now() });
-            s.rev += 1;
-            s.audit.push({ id: newId(s, 'aud'), programId: item.programId, at: now(), actorId: s.currentPersonId, action: 'item.updated', targetId: id, after: rest });
+            const before = Object.fromEntries(Object.keys(rest).map((k) => [k, (item as unknown as Record<string, unknown>)[k]]));
+            planEdit(s, item.programId, () => {
+              Object.assign(item, rest, { updatedAt: now() });
+              for (const [k, v] of Object.entries(rest)) if (v === undefined) delete (item as unknown as Record<string, unknown>)[k];
+            });
+            s.audit.push({ id: newId(s, 'aud'), programId: item.programId, at: now(), actorId: s.currentPersonId, action: 'item.updated', targetId: id, before, after: rest });
             return item;
           },
           (item) => programEvents(item.programId, [item.id]),
         ),
+      create: (draft) =>
+        write(
+          (s) => {
+            const ws = s.workstreams.find((w) => w.id === draft.workstreamId);
+            if (!ws) throw new NotFoundError(`workstream ${draft.workstreamId}`);
+            if (!can(actorIn(s, ws.programId), 'item.create', { workstreamId: ws.id })) throw new ForbiddenError('item.create');
+            if (!draft.title?.trim()) throw new ValidationError('Title is required');
+            const siblings = s.items.filter((i) => i.workstreamId === ws.id && i.parentId === draft.parentId);
+            const schedulable = draft.type === 'task' || draft.type === 'milestone' || draft.type === 'gate';
+            const item = {
+              status: 'not_started',
+              sharedWithGuestIds: [],
+              followerIds: [],
+              order: Math.max(0, ...siblings.map((x) => x.order)) + 1,
+              ownerId: s.currentPersonId,
+              ...(schedulable ? { durationHalfDays: draft.type === 'task' ? 10 : 0, percentComplete: 0, assignments: [] } : {}),
+              ...(draft.type === 'gate' ? { entryCriteria: [], exitCriteria: [], approverIds: [] } : {}),
+              ...draft,
+              id: newId(s, 'itm'),
+              programId: ws.programId,
+              createdAt: now(),
+              updatedAt: now(),
+            } as Item;
+            planEdit(s, ws.programId, () => s.items.push(item));
+            s.audit.push({ id: newId(s, 'aud'), programId: ws.programId, at: now(), actorId: s.currentPersonId, action: 'item.created', targetId: item.id });
+            return item;
+          },
+          (item) => programEvents(item.programId, [item.id]),
+        ),
+      move: (id, to) =>
+        write(
+          (s) => {
+            const item = findItem(s, id);
+            if (!can(actorIn(s, item.programId), 'item.edit', item)) throw new ForbiddenError(`item.edit on ${id}`);
+            if (to.parentId) {
+              let p: string | undefined = to.parentId;
+              while (p) {
+                if (p === id) throw new ValidationError('An item cannot be moved under itself');
+                p = s.items.find((x) => x.id === p)?.parentId;
+              }
+            }
+            planEdit(s, item.programId, () => {
+              if (to.parentId) item.parentId = to.parentId;
+              else delete item.parentId;
+              Object.assign(item, { workstreamId: to.workstreamId, order: to.order, updatedAt: now() });
+            });
+            return item;
+          },
+          (item) => programEvents(item.programId, [item.id]),
+        ).then(() => undefined),
+      remove: (id) =>
+        write(
+          (s) => {
+            const item = findItem(s, id);
+            if (!can(actorIn(s, item.programId), 'item.edit', item)) throw new ForbiddenError(`item.edit on ${id}`);
+            if (s.items.some((x) => x.parentId === id)) throw new ValidationError('Remove or move the child items first');
+            planEdit(s, item.programId, () => {
+              s.items = s.items.filter((x) => x.id !== id);
+              s.relations = s.relations.filter((r) => r.fromId !== id && r.toId !== id);
+            });
+            s.audit.push({ id: newId(s, 'aud'), programId: item.programId, at: now(), actorId: s.currentPersonId, action: 'item.removed', targetId: id, before: item });
+            return item;
+          },
+          (item) => programEvents(item.programId, [item.id]),
+        ).then(() => undefined),
       follow: (id, on) =>
         write((s) => {
           const item = findItem(s, id);
@@ -376,6 +465,44 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
           requireProgram(s, programId, 'program.view');
           return s.relations.filter((r) => r.programId === programId);
         }),
+      add: (r) =>
+        write(
+          (s) => {
+            requireProgram(s, r.programId, 'relation.edit');
+            if (r.kind === 'FS' || r.kind === 'SS') {
+              const edges = s.relations.filter((x) => x.programId === r.programId && (x.kind === 'FS' || x.kind === 'SS')).map((x) => ({ from: x.fromId, to: x.toId }));
+              const cycle = wouldCreateCycle(edges, r.fromId, r.toId);
+              if (cycle) throw new CycleError(cycle.map((id) => s.items.find((i) => i.id === id)?.title ?? id));
+              if (s.relations.some((x) => x.fromId === r.fromId && x.toId === r.toId && x.kind === r.kind)) throw new ValidationError('That dependency already exists');
+            }
+            const rel = { ...r, id: newId(s, 'rel') };
+            planEdit(s, r.programId, () => s.relations.push(rel));
+            return rel;
+          },
+          (rel) => programEvents(rel.programId, [rel.fromId, rel.toId]),
+        ),
+      update: (id, patch) =>
+        write(
+          (s) => {
+            const rel = s.relations.find((x) => x.id === id);
+            if (!rel) throw new NotFoundError(`relation ${id}`);
+            requireProgram(s, rel.programId, 'relation.edit');
+            planEdit(s, rel.programId, () => Object.assign(rel, patch));
+            return rel;
+          },
+          (rel) => programEvents(rel.programId, [rel.fromId, rel.toId]),
+        ),
+      remove: (id) =>
+        write(
+          (s) => {
+            const rel = s.relations.find((x) => x.id === id);
+            if (!rel) throw new NotFoundError(`relation ${id}`);
+            requireProgram(s, rel.programId, 'relation.edit');
+            planEdit(s, rel.programId, () => (s.relations = s.relations.filter((x) => x.id !== id)));
+            return rel;
+          },
+          (rel) => programEvents(rel.programId, [rel.fromId, rel.toId]),
+        ).then(() => undefined),
     }),
 
     schedule: planned<KeelApi['schedule']>('schedule', 4, {

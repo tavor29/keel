@@ -1,14 +1,15 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight, Diamond, Flag, Monitor, Package } from 'lucide-react';
+import { ChevronDown, ChevronRight, Diamond, Flag, IndentDecrease, IndentIncrease, Monitor, Package, Plus, Undo2, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
-import { useBaselines, useItems, useRelations, useSchedule, useWorkstreams } from '@/api/queries';
+import { useBaselines, useItems, useMyRole, useRelations, useSchedule, useWorkstreams } from '@/api/queries';
 import { fromEpochDay, toEpochDay } from '@/domain/dates';
 import type { Item, Workstream } from '@/domain/types';
 import { cn } from '@/ui/cn';
 import { fmtDate } from '@/ui/format';
 import { RagDot } from '@/ui/Rag';
 import { ItemSheet } from '../item/ItemSheet';
+import { useTimelineEditing } from './useTimelineEditing';
 
 const ROW_H = 28;
 const HEADER_H = 44;
@@ -33,6 +34,9 @@ export function TimelinePage() {
   const [showBaseline, setShowBaseline] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
+  const role = useMyRole(programId);
+  const canEdit = role === 'pm' || role === 'lead' || role === 'member';
+  const [renaming, setRenaming] = useState<string>();
   const selected = params.get('item') ?? undefined;
 
   const nodes = useMemo(() => new Map((schedule?.nodes ?? []).map((n) => [n.itemId, n])), [schedule]);
@@ -107,6 +111,31 @@ export function TimelinePage() {
 
   const critEdges = useMemo(() => new Set((schedule?.criticalEdges ?? []).map((e) => `${e.from}>${e.to}`)), [schedule]);
 
+  // Bring a newly added (or renamed) row into view: the grid is virtualized.
+  useEffect(() => {
+    if (!renaming) return;
+    const i = rowIndex.get(renaming);
+    if (i !== undefined) virtualizer.scrollToIndex(i, { align: 'center' });
+  }, [renaming, rowIndex, virtualizer]);
+
+  const editing = useTimelineEditing({
+    items: items ?? [],
+    pxPerDay: ZOOMS[zoom],
+    es: (id) => nodes.get(id)?.es,
+    onClick: (id) => setParams((p) => (p.set('item', id), p)),
+  });
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        e.preventDefault();
+        void editing.undoLast();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   if (!items || !schedule) return <div className="p-6 text-muted">Loading the plan…</div>;
   if (items.length === 0) return <div className="p-6 text-muted">This program has no plan yet. Switch to Titan-1.</div>;
 
@@ -158,11 +187,48 @@ export function TimelinePage() {
         <button type="button" onClick={() => setCollapsed(new Set())} className="h-7 rounded-md px-2 text-[12.5px] text-muted hover:bg-surface-2">
           Expand all
         </button>
+        {canEdit && (
+          <div className="flex items-center gap-1 border-l border-border pl-2" role="group" aria-label="Edit plan">
+            <button
+              type="button"
+              onClick={async () => {
+                const near = items.find((i) => i.id === selected);
+                const ws = near?.workstreamId ?? workstreams.find((w) => w.mode === 'scheduled')?.id;
+                if (!ws) return;
+                const created = await editing.addTask(near, ws, schedule.asOf);
+                if (created) {
+                  setParams((p) => (p.delete('item'), p));
+                  setRenaming(created.id);
+                }
+              }}
+              className="flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] hover:bg-surface-2"
+            >
+              <Plus className="size-3.5" aria-hidden /> Add task
+            </button>
+            <button type="button" aria-label="Indent" title="Indent (make a sub-task)" disabled={!selected} onClick={() => selected && void editing.indent(items.find((i) => i.id === selected)!)} className="flex size-7 items-center justify-center rounded-md hover:bg-surface-2 disabled:opacity-40">
+              <IndentIncrease className="size-4" />
+            </button>
+            <button type="button" aria-label="Outdent" title="Outdent" disabled={!selected} onClick={() => selected && void editing.outdent(items.find((i) => i.id === selected)!)} className="flex size-7 items-center justify-center rounded-md hover:bg-surface-2 disabled:opacity-40">
+              <IndentDecrease className="size-4" />
+            </button>
+            <button type="button" disabled={!editing.undo.length} onClick={() => void editing.undoLast()} title={editing.undo.at(-1) ? `Undo ${editing.undo.at(-1)!.label} (Ctrl+Z)` : 'Nothing to undo'} className="flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] hover:bg-surface-2 disabled:opacity-40">
+              <Undo2 className="size-3.5" aria-hidden /> Undo
+            </button>
+          </div>
+        )}
         <span className="ml-auto text-[12px] text-subtle">
           {items.filter((i) => SHOWN.includes(i.type)).length} items · finish {fmtDate(schedule.projectFinish, schedule.asOf)}
         </span>
       </div>
 
+      {editing.error && (
+        <div className="flex items-center gap-2 border-b border-border bg-red-subtle px-3 py-1.5 text-[12.5px] text-red" role="alert">
+          {editing.error}
+          <button type="button" aria-label="Dismiss" className="ml-auto" onClick={() => editing.setError(undefined)}>
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-2 border-b border-border bg-amber-subtle px-3 py-2 text-[12.5px] text-amber md:hidden">
         <Monitor className="size-4" aria-hidden /> The timeline is built for larger screens. Open Keel on a desktop to work with the plan.
       </div>
@@ -305,14 +371,26 @@ export function TimelinePage() {
                   </g>
                 );
               }
-              const x0 = x(n.es);
-              const w = Math.max(3, x(n.ef) + px - x0);
+              const dragging = editing.drag?.id === it.id ? editing.drag : undefined;
+              const x0 = x(n.es) + (dragging?.mode === 'move' ? dragging.dx : 0);
+              const w = Math.max(3, x(n.ef) + px - x(n.es) + (dragging?.mode === 'resize' ? dragging.dx : 0));
+              const leaf = n.kind === 'leaf' && it.type === 'task';
               return (
-                <g key={it.id} {...common}>
+                <g key={it.id} data-item={it.id} onClick={leaf && canEdit ? undefined : onClick} style={{ cursor: 'pointer' }}>
                   {ghost}
-                  <g style={{ transform: `translate(${x0}px, ${y + 6}px)`, transition: 'transform 600ms ease' }}>
+                  <g
+                    style={{ transform: `translate(${x0}px, ${y + 6}px)`, transition: dragging ? 'none' : 'transform 600ms ease', cursor: leaf && canEdit ? (dragging ? 'grabbing' : 'grab') : 'pointer' }}
+                    onPointerDown={leaf && canEdit ? (e) => editing.startDrag(e, it.id, 'move') : undefined}
+                    data-testid={`bar-${it.id}`}
+                  >
                     <rect width={w} height={13} rx={2} fill={crit ? 'var(--k-critical)' : 'var(--k-accent)'} opacity={crit ? 0.85 : 0.7} />
                     {pct > 0 && <rect width={(w * pct) / 100} height={13} rx={2} fill={crit ? 'var(--k-critical)' : 'var(--k-accent)'} />}
+                    {leaf && canEdit && <rect x={w - 5} width={9} height={13} fill="transparent" style={{ cursor: 'ew-resize' }} onPointerDown={(e) => editing.startDrag(e, it.id, 'resize')} data-testid={`resize-${it.id}`} />}
+                    {dragging && Math.abs(dragging.dx) >= 4 && (
+                      <text x={w + 6} y={11} fontSize={11} fill="var(--k-text)" fontWeight={600}>
+                        {dragging.mode === 'move' ? `${Math.round(dragging.dx / px) > 0 ? '+' : ''}${Math.round(dragging.dx / px)}d` : `${Math.max(0.5, ((it.type === 'task' ? it.durationHalfDays : 0) + Math.round(dragging.dx / px) * 2) / 2)}d`}
+                      </text>
+                    )}
                   </g>
                   <title>
                     {it.title} · {fmtDate(n.es)} → {fmtDate(n.ef)} · {pct}%
@@ -387,7 +465,28 @@ export function TimelinePage() {
                     {it.type === 'gate' && <Flag className="size-3.5 shrink-0 text-subtle" aria-label="Stage gate" />}
                     {it.type === 'milestone' && <Diamond className="size-3.5 shrink-0 text-subtle" aria-label="Milestone" />}
                     {it.type === 'procurement' && <Package className="size-3.5 shrink-0 text-subtle" aria-label="Procurement" />}
-                    <span className="truncate">{it.title}</span>
+                    {renaming === it.id ? (
+                      <input
+                        autoFocus
+                        defaultValue={it.title}
+                        aria-label="Task name"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          if (e.key === 'Escape') setRenaming(undefined);
+                        }}
+                        onBlur={(e) => {
+                          void editing.rename(it, e.target.value);
+                          setRenaming(undefined);
+                        }}
+                        className="h-6 min-w-0 flex-1 rounded border border-accent bg-surface px-1"
+                      />
+                    ) : (
+                      <span className="truncate" onDoubleClick={canEdit ? (e) => (e.stopPropagation(), setRenaming(it.id)) : undefined}>
+                        {it.title}
+                      </span>
+                    )}
                     {!row.hasKids && <RagDot rag={schedule.rag.items[it.id]} className={schedule.rag.items[it.id] === 'green' ? 'opacity-0' : ''} />}
                   </span>
                   <span className="w-[72px] shrink-0 tabular-nums text-muted">{fmtDate(n?.es)}</span>

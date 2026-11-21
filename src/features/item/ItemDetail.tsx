@@ -10,6 +10,7 @@ import { fmtDateLong, humanize, money, timeAgo } from '@/ui/format';
 import { Avatar, Badge } from '@/ui/primitives';
 import { RagBadge } from '@/ui/Rag';
 import { ChangeRequestCard, ProposalCard } from '../proposals/ProposalCard';
+import { DependencyEditor } from './DependencyEditor';
 
 const TYPE_LABEL: Record<Item['type'], string> = {
   task: 'Task',
@@ -256,6 +257,8 @@ export function ItemDetail({ programId, itemId, onOpen }: { programId: string; i
           ))}
         </div>
       )}
+
+      {(role === 'pm' || role === 'lead') && (it.type === 'task' || it.type === 'milestone' || it.type === 'gate') && <DependencyEditor item={it} items={items} relations={relations} />}
 
       <section aria-label="Stream">
         <h3 className="mb-2 text-[12px] font-semibold text-subtle">Stream: messages, email, check-ins and changes</h3>
