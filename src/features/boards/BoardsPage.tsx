@@ -8,6 +8,7 @@ import { fmtDate } from '@/ui/format';
 import { Avatar, Badge, EmptyState } from '@/ui/primitives';
 import { RagBadge } from '@/ui/Rag';
 import { ItemSheet } from '../item/ItemSheet';
+import { BudgetView, WorkloadView } from './CostViews';
 
 const COLUMNS: { status: Status; label: string }[] = [
   { status: 'not_started', label: 'To do' },
@@ -124,6 +125,7 @@ export function BoardsPage() {
   const sprints = useSprints(programId, ws?.mode === 'agile' ? ws.id : undefined).data ?? [];
   const backlog = useBacklog(programId, ws?.mode === 'agile' ? ws.id : undefined).data ?? [];
   const selected = params.get('item') ?? undefined;
+  const view = params.get('view') ?? 'board';
   const open = (id: string) => setParams((p) => (p.set('item', id), p));
 
   const active = sprints.find((s) => s.state === 'active');
@@ -141,6 +143,21 @@ export function BoardsPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-4 py-2">
+        <div className="mr-2 flex rounded-md border border-border p-0.5" role="tablist" aria-label="View">
+          {(['board', 'budget', 'workload'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setParams((p) => (v === 'board' ? p.delete('view') : p.set('view', v), p))}
+              className={cn('h-6 rounded px-2.5 text-[12.5px] capitalize', view === v ? 'bg-accent-subtle font-medium text-accent' : 'text-muted hover:text-text')}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+        {view === 'board' && (
         <div className="flex flex-wrap gap-1" role="tablist" aria-label="Workstream">
           {workstreams.map((w) => (
             <button
@@ -157,9 +174,14 @@ export function BoardsPage() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
+        {view === 'budget' && <BudgetView programId={programId} />}
+        {view === 'workload' && <WorkloadView programId={programId} />}
+        {view === 'board' && (
+        <>
         {ws.mode === 'agile' && (
           <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px_340px]">
             <section className="rounded-lg border border-border bg-surface p-3" aria-label="Sprint summary">
@@ -258,6 +280,8 @@ export function BoardsPage() {
               ))}
             </ul>
           </section>
+        )}
+        </>
         )}
       </div>
       <ItemSheet programId={programId} itemId={selected} onClose={() => setParams((p) => (p.delete('item'), p))} onOpen={open} />

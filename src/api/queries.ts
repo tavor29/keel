@@ -282,3 +282,15 @@ export function useDocActions() {
     acknowledge: useMutation({ mutationFn: (id: string) => api.documents.acknowledgeDrift(id) }),
   };
 }
+
+// ── Cost & workload (phase 4) ─────────────────────────────
+
+export function useEvmTrend(programId: string) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'evm-trend'], queryFn: () => api.cost.evmTrend(programId) });
+}
+
+export function useWorkload(programId: string) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'workload'], queryFn: () => api.schedule.workload(programId) });
+}

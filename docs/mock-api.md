@@ -52,6 +52,7 @@ export interface KeelApi {
     get(programId: string): Promise<ScheduleView>;
     baselines(programId: string): Promise<Baseline[]>;
     setBaseline(programId: string, name: string, reason?: string): Promise<Baseline>;
+    workload(programId: string, weeks?: number): Promise<Workload>;   // person × week load %, no leveling
   };
 
   agile: {

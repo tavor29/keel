@@ -5,6 +5,7 @@ import { suggestFiling } from '@/domain/mailFiling';
 import { suggestPromotion, type PromotionDraft } from '@/domain/promotion';
 import { actorFrom, can, type Action, type Actor, type Resource } from '@/domain/permissions';
 import { draftReport } from '@/domain/report';
+import { computeWorkload } from '@/domain/workload';
 import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, ProjectDocument, Program, Proposal, StatusReport, Task } from '@/domain/types';
 import type { DocAttention } from '../contract';
 import type { KeelApi, KeelEvent } from '../contract';
@@ -382,6 +383,12 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
         read((s) => {
           requireProgram(s, programId, 'program.view');
           return toView(compute(s, programId));
+        }),
+      workload: (programId, weeks) =>
+        read((s) => {
+          requireProgram(s, programId, 'program.view');
+          const c = compute(s, programId);
+          return computeWorkload(c.plan, c.result, weeks);
         }),
       baselines: (programId) =>
         read((s) => {

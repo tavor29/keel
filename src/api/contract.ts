@@ -9,6 +9,7 @@ import type {
 } from '@/domain/types';
 import type { DocDrift, RaciMatrix, RenderedDocument } from '@/domain/documents';
 import type { EvmSnapshot } from '@/domain/evm';
+import type { Workload } from '@/domain/workload';
 import type { PromotionDraft } from '@/domain/promotion';
 
 export interface KeelApi {
@@ -49,6 +50,7 @@ export interface KeelApi {
     get(programId: string): Promise<ScheduleView>;
     baselines(programId: string): Promise<Baseline[]>;
     setBaseline(programId: string, name: string, reason?: string): Promise<Baseline>;
+    workload(programId: string, weeks?: number): Promise<Workload>;   // person × week load %, no leveling
   };
 
   agile: {

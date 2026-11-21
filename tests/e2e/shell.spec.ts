@@ -77,3 +77,11 @@ test('Documents: live charter, traced BRD and a validated RACI', async ({ page }
   await expect(page.getByRole('alert')).toContainText('no one is Accountable');
   await expect(page.getByRole('table', { name: 'RACI matrix' })).toBeVisible();
 });
+
+test('Boards: budget and workload views', async ({ page }) => {
+  await page.goto('/p/prg_titan/boards?view=budget');
+  await expect(page.getByRole('table', { name: 'Budget by workstream' })).toContainText('Program total');
+  await expect(page.getByRole('img', { name: 'CPI and SPI trend' })).toBeVisible();
+  await page.getByRole('tab', { name: 'workload' }).click();
+  await expect(page.getByTestId('workload-row').first()).toBeVisible();
+});
