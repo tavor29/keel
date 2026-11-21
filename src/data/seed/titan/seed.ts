@@ -26,6 +26,7 @@ import type {
   Workstream,
 } from '@/domain/types';
 import { titanTeam, TITAN_WS } from './people';
+import { titanRaid } from '../raid';
 import { titanRisks } from './risks';
 import { titanSoftwareSprints } from './software';
 import { TITAN_AS_OF, TITAN_PROGRAM_ID, titanCalendar, titanProgram } from './plan';
@@ -60,6 +61,7 @@ export function titanSeed(): TitanSeed {
 
   // ── Risks (RAID) and past change requests ─────────────────────────────
   items.push(...titanRisks(team, base));
+  items.push(...titanRaid(base, TITAN_WS, (ws) => imp.workstreams.find((w) => w.id === ws)?.leadId ?? 'per_alex'));
   const cr = (k: string, title: string, cost: number, at: string, scope: string): ChangeRequest => ({
     ...base,
     id: id(k),

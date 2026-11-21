@@ -2,11 +2,12 @@ import { ArrowDown, ArrowUp, ShieldAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { useItems, usePeople, useWorkstreams } from '@/api/queries';
-import type { Risk } from '@/domain/types';
+import type { Assumption, Decision, Issue, Risk } from '@/domain/types';
 import { cn } from '@/ui/cn';
 import { humanize } from '@/ui/format';
 import { EmptyState } from '@/ui/primitives';
 import { ItemSheet } from '../item/ItemSheet';
+import { AssumptionsTable, DecisionsTable, IssuesTable, RiskHeatMap } from './RaidLogs';
 
 const SEVERITY = ['', 'Negligible', 'Minor', 'Moderate', 'Major', 'Critical'] as const;
 const PROBABILITY = ['', 'Rare', 'Unlikely', 'Possible', 'Likely', 'Almost certain'] as const;
@@ -43,17 +44,22 @@ export function RaidPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'risks';
   const selected = params.get('item') ?? undefined;
-  const risksQ = useItems(programId, { types: ['risk'] });
+  const raidQ = useItems(programId, { types: ['risk', 'assumption', 'issue', 'decision'] });
+  const [cell, setCell] = useState<[number, number]>();
   const people = usePeople(programId);
   const workstreams = useWorkstreams(programId).data ?? [];
   const [sort, setSort] = useState<Sort>({ key: 'score', dir: -1 });
   const [ws, setWs] = useState('');
   const [showClosed, setShowClosed] = useState(false);
 
-  const all = useMemo(() => (risksQ.data ?? []).filter((i): i is Risk => i.type === 'risk'), [risksQ.data]);
+  const all = useMemo(() => (raidQ.data ?? []).filter((i): i is Risk => i.type === 'risk'), [raidQ.data]);
+  const assumptions = useMemo(() => (raidQ.data ?? []).filter((i): i is Assumption => i.type === 'assumption'), [raidQ.data]);
+  const issues = useMemo(() => (raidQ.data ?? []).filter((i): i is Issue => i.type === 'issue'), [raidQ.data]);
+  const decisions = useMemo(() => (raidQ.data ?? []).filter((i): i is Decision => i.type === 'decision'), [raidQ.data]);
+  const counts: Record<string, number> = { assumptions: assumptions.length, issues: issues.filter((i) => i.status !== 'done').length, decisions: decisions.length };
   const closedCount = all.filter((r) => r.status === 'done' || r.status === 'cancelled').length;
   const rows = useMemo(() => {
-    const list = all.filter((r) => (showClosed || (r.status !== 'done' && r.status !== 'cancelled')) && (!ws || r.workstreamId === ws));
+    const list = all.filter((r) => (showClosed || (r.status !== 'done' && r.status !== 'cancelled')) && (!ws || r.workstreamId === ws) && (!cell || (r.probability === cell[0] && r.impact === cell[1])));
     const val = (r: Risk): number | string =>
       sort.key === 'score' ? r.probability * r.impact * 10 + r.impact : sort.key === 'severity' ? r.impact * 10 + r.probability : sort.key === 'probability' ? r.probability * 10 + r.impact : (r.code ?? r.title);
     return [...list].sort((a, b) => {
@@ -61,7 +67,7 @@ export function RaidPage() {
       const y = val(b);
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
     });
-  }, [all, sort, ws, showClosed]);
+  }, [all, sort, ws, showClosed, cell]);
 
   const setParam = (k: string, v?: string) =>
     setParams((p) => {
@@ -83,22 +89,28 @@ export function RaidPage() {
               className={cn('-mb-px border-b-2 px-2.5 pb-2 pt-1 text-[13px]', tab === t.key ? 'border-accent font-semibold text-text' : 'border-transparent text-muted hover:text-text')}
             >
               {t.label}
-              {t.key === 'risks' && <span className="ml-1.5 text-[11.5px] text-subtle">{all.length - closedCount}</span>}
+              <span className="ml-1.5 text-[11.5px] text-subtle">{t.key === 'risks' ? all.length - closedCount : counts[t.key]}</span>
             </button>
           ))}
         </nav>
       </div>
 
       {tab !== 'risks' ? (
-        <EmptyState icon={<ShieldAlert />} title={`${TABS.find((t) => t.key === tab)?.label} log`}>
-          Assumptions, issues and decisions arrive with the rest of the RAID log in phase 4. The risk register is live now.
-        </EmptyState>
-      ) : risksQ.data && all.length === 0 ? (
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <h2 className="mb-3 text-[15px] font-semibold">{TABS.find((t) => t.key === tab)?.label} log</h2>
+          {tab === 'assumptions' && <AssumptionsTable rows={assumptions} people={people} workstreams={workstreams} onOpen={(id) => setParam('item', id)} />}
+          {tab === 'issues' && <IssuesTable rows={issues} people={people} workstreams={workstreams} onOpen={(id) => setParam('item', id)} />}
+          {tab === 'decisions' && <DecisionsTable rows={decisions} people={people} workstreams={workstreams} onOpen={(id) => setParam('item', id)} />}
+        </div>
+      ) : raidQ.data && all.length === 0 ? (
         <EmptyState icon={<ShieldAlert />} title="No risks recorded">
           This program has no risks yet. Switch to <strong>Titan-1</strong> to see a populated register.
         </EmptyState>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="mb-4 max-w-md">
+            <RiskHeatMap risks={all} selected={cell} onSelect={setCell} />
+          </div>
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <h2 className="mr-auto text-[15px] font-semibold">Risk register</h2>
             <label className="flex items-center gap-1.5 text-[12.5px]">

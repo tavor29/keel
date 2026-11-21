@@ -56,3 +56,13 @@ test('RAID log opens on the risk register table', async ({ page }) => {
   await expect(page.getByTestId('risk-row').first()).toContainText('MV switchgear factory acceptance failure');
   await expect(page.getByTestId('risk-row').first()).toContainText('Plan B');
 });
+
+test('RAID log has assumptions, issues and decisions, plus a heat map', async ({ page }) => {
+  await page.goto('/p/prg_titan/raid');
+  await expect(page.getByRole('figure', { name: 'Risk heat map' })).toBeVisible();
+  for (const [tab, table] of [['Assumptions', 'Assumptions log'], ['Issues', 'Issues log'], ['Decisions', 'Decisions log']] as const) {
+    await page.getByRole('navigation', { name: 'RAID log sections' }).getByRole('button', { name: new RegExp(`^${tab}`) }).click();
+    await expect(page.getByRole('table', { name: table })).toBeVisible();
+    await expect(page.getByTestId('raid-row').first()).toBeVisible();
+  }
+});

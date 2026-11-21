@@ -4,6 +4,7 @@ import { WorkCalendar } from '@/domain/calendar';
 import { addDays } from '@/domain/dates';
 import type { PlanState } from '@/domain/plan';
 import { schedule } from '@/domain/scheduling/schedule';
+import { lumenRaid } from '../raid';
 import type { Calendar, Channel, Item, Membership, Message, Milestone, Person, Program, Relation, Risk, Sprint, Task, Workstream } from '@/domain/types';
 
 export const LUMEN_ID = 'prg_lumen';
@@ -279,7 +280,7 @@ export function lumenSeed(): LumenSeed {
     risk('risk_pricing', WS.gtm, 'Pricing not final in time for launch', 'Enterprise and usage tiers still have open questions; late pricing blocks the pricing page and sales collateral.', 3, 3, 'Pricing decision meeting scheduled; two options modelled with finance.', 'Launch with self-serve pricing only and “contact sales” for enterprise.', 'per_emma_walsh', 'L-04'),
   ];
 
-  const items: Item[] = [...platform, ...webapp, ...data, ...infra, ...gtm, ...risks];
+  const items: Item[] = [...platform, ...webapp, ...data, ...infra, ...gtm, ...risks, ...lumenRaid(base)];
   const id = (k: string) => `itm_lumen_${k}`;
   let r = 0;
   const rel = (from: string, to: string, kind: 'FS' | 'SS' = 'FS', lagDays = 0): Relation => ({ id: `rel_lumen_${++r}`, programId: P, kind, fromId: from, toId: to, lagHalfDays: lagDays * 2 });

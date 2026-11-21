@@ -26,7 +26,7 @@ import type {
  * Bump when the shape of MockState or the seed changes incompatibly.
  * Old persisted state is discarded and the demo reseeds.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export interface MockState {
   schemaVersion: number;
