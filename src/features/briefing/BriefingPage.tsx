@@ -2,7 +2,7 @@ import { AlertTriangle, CalendarClock, ClipboardCheck, FileText, Flag, Inbox, Me
 import { Button } from '@/ui/Button';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router';
-import { useDecideCr, useDocActions, useDocAttention, useDigest, useEvm, useItems, useMe, useMyRole, usePeople, useProposals, useSchedule, useWorkstreams, useCheckins } from '@/api/queries';
+import { useCheckinActions, useDecideCr, useDocActions, useDocAttention, useDigest, useEvm, useItems, useMe, useMyRole, usePeople, useProposals, useSchedule, useWorkstreams, useCheckins } from '@/api/queries';
 import { addDays } from '@/domain/dates';
 import { evmRag } from '@/domain/evm';
 import type { ChangeRequest, Item, Rag } from '@/domain/types';
@@ -54,6 +54,7 @@ export function BriefingPage() {
   const decide = useDecideCr();
   const attention = useDocAttention(programId).data ?? [];
   const docActions = useDocActions();
+  const checkinActions = useCheckinActions();
 
   const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
 
@@ -100,9 +101,10 @@ export function BriefingPage() {
   const lastRound = [...checkins].sort((a, b) => b.sentAt.localeCompare(a.sentAt))[0];
   const answered = lastRound?.requests.filter((r) => r.answer) ?? [];
   const atRisk = answered.filter((r) => r.answer?.kind !== 'on_track');
+  const myCheckins = checkins.flatMap((round) => round.requests.filter((r) => r.personId === me.person.id && !r.answer).map((r) => ({ round, r })));
   const docItems = attention.filter((a) => a.kind !== 'comms_due');
   const commsDue = attention.filter((a) => a.kind === 'comms_due');
-  const needsCount = (role === 'pm' ? pending.length : 0) + myCrs.length + docItems.length;
+  const needsCount = (role === 'pm' ? pending.length : 0) + myCrs.length + docItems.length + myCheckins.length;
   const e = evm?.program && evm.program.bacCents > 0 ? evm.program : undefined;
 
   return (
@@ -118,6 +120,33 @@ export function BriefingPage() {
         <Panel title="Needs you" icon={<Sparkles />} action={needsCount ? <Badge tone="ai">{needsCount}</Badge> : null}>
           {needsCount === 0 && otherCrs.length === 0 && (role !== 'pm' || pending.length === 0) && <p className="text-muted">Nothing needs your decision right now.</p>}
           <div className="space-y-3">
+            {myCheckins.map(({ round, r }) => (
+              <article key={round.id + r.itemId} className="rounded-lg border border-accent/40 bg-surface p-3" data-testid="my-checkin">
+                <header className="mb-1 flex items-center gap-1.5 text-[11.5px] text-subtle">
+                  <ClipboardCheck className="size-3.5" aria-hidden />
+                  <Badge tone="accent">Check-in</Badge>
+                  <span>{round.kind === 'adhoc' ? 'Ad hoc' : 'Weekly'} · {fmtDate(round.sentAt.slice(0, 10))}</span>
+                </header>
+                <p className="font-medium">
+                  How is{' '}
+                  <Link to={`/p/${programId}/items/${r.itemId}`} className="hover:underline">
+                    {byId.get(r.itemId)?.title}
+                  </Link>{' '}
+                  going?
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Button size="sm" variant="primary" onClick={() => checkinActions.answer.mutate({ roundId: round.id, itemId: r.itemId, answer: { kind: 'on_track' } })}>
+                    On track
+                  </Button>
+                  <Button size="sm" onClick={() => checkinActions.answer.mutate({ roundId: round.id, itemId: r.itemId, answer: { kind: 'at_risk', newDate: schedule.asOf, note: 'Flagged from the Briefing' } })}>
+                    At risk
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => checkinActions.answer.mutate({ roundId: round.id, itemId: r.itemId, answer: { kind: 'blocked', reason: 'Flagged as blocked from the Briefing' } })}>
+                    Blocked
+                  </Button>
+                </div>
+              </article>
+            ))}
             {docItems.map((a) => (
               <article key={a.kind + a.documentId} className={cn('rounded-lg border bg-surface p-3', a.kind === 'drift' ? 'border-red/40' : 'border-amber/50')} data-testid="doc-attention">
                 <header className="mb-1 flex items-center gap-1.5 text-[11.5px] text-subtle">
@@ -291,9 +320,24 @@ export function BriefingPage() {
         )}
 
         {lastRound && (
-          <Panel title="Check-ins" icon={<ClipboardCheck />}>
+          <Panel
+            title="Check-ins"
+            icon={<ClipboardCheck />}
+            action={
+              role === 'pm' ? (
+                <div className="flex gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => checkinActions.send.mutate({ programId, scope: 'active_window' })} disabled={checkinActions.send.isPending}>
+                    Send weekly round
+                  </Button>
+                  <Button size="sm" onClick={() => checkinActions.send.mutate({ programId, scope: 'critical_path' })} disabled={checkinActions.send.isPending}>
+                    Ping critical path
+                  </Button>
+                </div>
+              ) : null
+            }
+          >
             <p className="text-muted">
-              Weekly round sent {fmtDate(lastRound.sentAt.slice(0, 10))}: {answered.length}/{lastRound.requests.length} answered
+              {lastRound.kind === 'adhoc' ? 'Ad hoc round' : 'Weekly round'} sent {fmtDate(lastRound.sentAt.slice(0, 10))}: {answered.length}/{lastRound.requests.length} answered
               {atRisk.length ? `, ${atRisk.length} at risk` : ''}.
             </p>
             <ul className="mt-1.5 space-y-1">

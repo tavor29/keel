@@ -7,7 +7,7 @@ import { actorFrom, can, type Action, type Actor, type Resource } from '@/domain
 import { draftReport } from '@/domain/report';
 import { computeWorkload } from '@/domain/workload';
 import { wouldCreateCycle } from '@/domain/scheduling/cpm';
-import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, ProjectDocument, Program, Proposal, StatusReport, Task } from '@/domain/types';
+import type { ChangeRequest, CheckinRequest, CheckinRound, Item, MailMessage, Message, ProjectDocument, Program, Proposal, StatusReport, Task } from '@/domain/types';
 import type { DocAttention } from '../contract';
 import type { KeelApi, KeelEvent } from '../contract';
 import { CycleError, ForbiddenError, NotFoundError, NotImplementedError, ValidationError } from '../errors';
@@ -202,6 +202,39 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     return item;
   }
 
+  /** Builds a check-in round: active-window items, or what's on the critical path now. */
+  function sendRoundNow(s: MockState, programId: string, scope: CheckinRound['scope'], kind: 'weekly' | 'adhoc') {
+    const c = compute(s, programId);
+    const horizon = addCalendarDays(s.today, 14);
+    const open = (i: Item) => {
+      const n = c.result.nodes.get(i.id);
+      return !!n && n.kind === 'leaf' && !!i.ownerId && i.status !== 'done' && i.status !== 'cancelled' ? n : undefined;
+    };
+    const inProgram = s.items.filter((i) => i.programId === programId);
+    const items =
+      scope.kind === 'items'
+        ? inProgram.filter((i) => scope.itemIds.includes(i.id) && open(i))
+        : scope.kind === 'critical_path'
+          ? // The next 14 open items on the critical path, wherever they sit in time.
+            inProgram.filter((i) => open(i)?.critical).sort((a, b) => open(a)!.es.localeCompare(open(b)!.es)).slice(0, 14)
+          : inProgram.filter((i) => {
+              const n = open(i);
+              return !!n && n.es <= horizon && n.ef >= s.today;
+            }).slice(0, 20);
+    if (!items.length) throw new ValidationError('Nothing to check in on for that scope');
+    const round = {
+      id: newId(s, 'chk'),
+      programId,
+      kind,
+      scope,
+      sentAt: now(),
+      requests: items.map((i) => ({ itemId: i.id, personId: i.ownerId!, channel: s.people.find((p) => p.id === i.ownerId)?.home ?? ('keel' as const) })),
+    };
+    s.checkinRounds.push(round);
+    for (const r of round.requests) s.notifications.push({ id: newId(s, 'ntf'), personId: r.personId, at: now(), kind: 'checkin_assigned', targetId: r.itemId, read: false });
+    return round;
+  }
+
   function closeSprintNow(s: MockState, sprintId: string) {
     const sprint = s.sprints.find((x) => x.id === sprintId);
     if (!sprint) throw new NotFoundError(`sprint ${sprintId}`);
@@ -265,6 +298,7 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     answerCheckin: answerCheckinNow,
     createChangeRequest: createChangeRequestNow,
     closeSprint: closeSprintNow,
+    sendRound: sendRoundNow,
     speed: opts.scenarioSpeed ?? 1,
   };
   const scenarios = createScenarioRunner(host);
@@ -654,6 +688,14 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
           requireProgram(s, programId, 'program.view');
           return s.checkinRounds.filter((r) => r.programId === programId);
         }),
+      send: (programId, scope, kind) =>
+        write(
+          (s) => {
+            requireProgram(s, programId, 'checkin.send');
+            return sendRoundNow(s, programId, scope, kind);
+          },
+          (r) => [{ type: 'checkin.answered', roundId: r.id, itemId: '' }],
+        ),
       answer: (roundId, itemId, answer) =>
         write(
           (s) => {

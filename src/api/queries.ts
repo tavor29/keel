@@ -294,3 +294,11 @@ export function useWorkload(programId: string) {
   const api = useApi();
   return useQuery({ queryKey: ['p', programId, 'workload'], queryFn: () => api.schedule.workload(programId) });
 }
+
+export function useCheckinActions() {
+  const api = useApi();
+  return {
+    send: useMutation({ mutationFn: ({ programId, scope }: { programId: string; scope: 'critical_path' | 'active_window' }) => api.checkins.send(programId, { kind: scope }, scope === 'critical_path' ? 'adhoc' : 'weekly') }),
+    answer: useMutation({ mutationFn: ({ roundId, itemId, answer }: { roundId: string; itemId: string; answer: Parameters<typeof api.checkins.answer>[2] }) => api.checkins.answer(roundId, itemId, answer) }),
+  };
+}

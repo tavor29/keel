@@ -3,7 +3,7 @@
 // The "AI" here is scripted: plan changes are fixed, but every number shown to the
 // viewer comes from the real domain computations.
 import { addDays, diffDays } from '@/domain/dates';
-import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, PlanChange, Proposal, Sprint, Task } from '@/domain/types';
+import type { ChangeRequest, CheckinRequest, CheckinRound, Item, MailMessage, Message, PlanChange, Proposal, Sprint, Task } from '@/domain/types';
 import type { KeelEvent } from '../contract';
 import type { EventBus } from './eventBus';
 import type { MockState } from './state';
@@ -21,6 +21,7 @@ export interface ScenarioHost {
     cr: Pick<ChangeRequest, 'title' | 'scopeDelta' | 'costDeltaCents' | 'changes' | 'approverIds' | 'workstreamId'> & { ownerId: string; description?: string },
   ): ChangeRequest;
   closeSprint(s: MockState, sprintId: string): { sprint: Sprint; carried: Task[] };
+  sendRound(s: MockState, programId: string, scope: CheckinRound['scope'], kind: 'weekly' | 'adhoc'): CheckinRound;
   speed: number;
 }
 
@@ -171,6 +172,71 @@ const t1: Scenario = {
     // 9. Report refresh
     await ctx.waitFor('Switch back to Alex Rivera, then open Status report and draft this week’s report.', (e, s) => e.type === 'report.changed' && s.currentPersonId === 'per_alex');
     ctx.caption('Done: email → proposal → approval → plan, budget, baseline and report all updated, every line traceable to its source.');
+  },
+};
+
+const t2: Scenario = {
+  id: 't2-critical-path-checkin',
+  programId: TITAN,
+  title: 'T2 · Critical-path check-in',
+  blurb: 'Titan-1 · ping everyone on the critical path → answers stream in from Keel, Teams and email → proposals for the at-risk items',
+  steps: 4,
+  async run(ctx) {
+    const { host } = ctx;
+    const sent = (s: MockState) => s.checkinRounds.some((r) => r.programId === TITAN && r.kind === 'adhoc' && r.scope.kind === 'critical_path');
+    const before = host.state.checkinRounds.length;
+    ctx.caption('Alex wants a fresh read on everything driving the end date.', 'In the Briefing’s Check-ins panel, click “Ping critical path”.');
+    await ctx.waitFor('In the Briefing’s Check-ins panel, click “Ping critical path”.', (_e, s) => sent(s) && s.checkinRounds.length > before, () => false);
+    const round = [...host.state.checkinRounds].reverse().find((r) => r.kind === 'adhoc' && r.scope.kind === 'critical_path')!;
+    ctx.caption(`Check-in sent to ${round.requests.length} owners, each where they work (Keel, Teams, Slack or email). Answers are coming in…`);
+    await ctx.delay(1200);
+
+    const reqs = round.requests;
+    const atRisk = reqs.slice(1, 3).map((r) => r.itemId);
+    const blocked = reqs[3]?.itemId;
+    for (const r of reqs) {
+      const item = host.state.items.find((i) => i.id === r.itemId);
+      if (!item) continue;
+      const answer: NonNullable<CheckinRequest['answer']> = atRisk.includes(r.itemId)
+        ? { kind: 'at_risk', newDate: addDays(host.state.today, 21), note: 'Crew is short this week; we need about 3 more days.' }
+        : r.itemId === blocked
+          ? { kind: 'blocked', reason: 'Waiting on the fire marshal to confirm the inspection slot.' }
+          : { kind: 'on_track' };
+      const { message } = host.write(
+        (s) => host.answerCheckin(s, TITAN, r.itemId, r.personId, answer, r.channel === 'slack' ? 'slack' : r.channel === 'teams' ? 'teams' : r.channel === 'email' ? 'email' : 'keel'),
+        (x) => [{ type: 'message.posted', message: x.message }, { type: 'item.changed', programId: TITAN, itemIds: [r.itemId] }],
+      );
+      if (answer.kind !== 'on_track') {
+        host.write(
+          (s) => {
+            const it = s.items.find((i) => i.id === r.itemId);
+            if (answer.kind === 'at_risk' && it?.type === 'task') {
+              return host.createProposal(s, {
+                programId: TITAN,
+                origin: 'checkin',
+                rationale: `Check-in answer from the owner: “${answer.note}”`,
+                sources: [{ kind: 'message', id: message.id, quote: answer.note }],
+                changes: [{ op: 'set_dates', itemId: it.id, durationHalfDays: it.durationHalfDays + 6 }],
+              });
+            }
+            return host.createProposal(s, {
+              programId: TITAN,
+              origin: 'checkin',
+              rationale: `Blocked: “${answer.kind === 'blocked' ? answer.reason : ''}” Keel suggests logging an issue so it is tracked and escalated.`,
+              sources: [{ kind: 'message', id: message.id, quote: answer.kind === 'blocked' ? answer.reason : '' }],
+              changes: [{ op: 'create_item', draft: { type: 'issue', title: `Blocked: ${it?.title ?? 'critical-path task'}`, workstreamId: it?.workstreamId ?? 'wst_titan_site', severity: 'high', description: answer.kind === 'blocked' ? answer.reason : '', status: 'blocked' } as Partial<Item> & { type: 'issue'; title: string; workstreamId: string } }],
+            });
+          },
+          (p) => [{ type: 'proposal.created', proposal: p }],
+        );
+      }
+      await ctx.delay(450);
+    }
+    const n = reqs.length;
+    ctx.caption(`${n} answers: ${n - atRisk.length - (blocked ? 1 : 0)} on track, ${atRisk.length} at risk, ${blocked ? 1 : 0} blocked. Keel turned the exceptions into proposals.`, 'Review the new proposals in the Briefing’s “Needs you” list.');
+    const decided = (s: MockState) => s.proposals.filter((p) => p.origin === 'checkin' && p.createdAt >= round.sentAt).every((p) => p.state !== 'pending');
+    await ctx.waitFor('Review the new proposals in the Briefing’s “Needs you” list (approve or reject each).', (_e, s) => decided(s), decided);
+    ctx.caption('Done: one ping, answers from wherever people work, and only the exceptions reached you, each with its computed impact.');
   },
 };
 
@@ -362,7 +428,7 @@ const l2: Scenario = {
   },
 };
 
-const ALL: Scenario[] = [t1, l1, l2];
+const ALL: Scenario[] = [t1, t2, l1, l2];
 
 export function createScenarioRunner(host: ScenarioHost) {
   let active: { id: string; cancel: () => void } | null = null;
