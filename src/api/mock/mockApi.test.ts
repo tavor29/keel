@@ -84,11 +84,11 @@ describe('mock KeelApi', () => {
 
   it('marks later-phase methods as not implemented, with their phase', async () => {
     const api = createMockApi({ ...fast, store: null });
-    const err = await api.documents.list(TITAN_ID).catch((e: unknown) => e);
+    const err = await api.io.exportCsv(TITAN_ID).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(NotImplementedError);
-    expect(err).toMatchObject({ method: 'documents.list', phase: 4 });
+    expect(err).toMatchObject({ method: 'io.exportCsv', phase: 5 });
     // Namespaces must not look like Promises.
-    expect((api.documents as unknown as { then?: unknown }).then).toBeUndefined();
+    expect((api.io as unknown as { then?: unknown }).then).toBeUndefined();
   });
 
   it('simulates latency by default', async () => {

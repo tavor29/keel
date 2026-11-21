@@ -1,6 +1,12 @@
 import type { PromotionDraft } from '@/domain/promotion';
 import type {
   AuditEntry,
+  CommsPlanRow,
+  DocumentVersion,
+  ProjectDocument,
+  RaciOverride,
+  Requirement,
+  Stakeholder,
   Baseline,
   Calendar,
   Channel,
@@ -26,7 +32,7 @@ import type {
  * Bump when the shape of MockState or the seed changes incompatibly.
  * Old persisted state is discarded and the demo reseeds.
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export interface MockState {
   schemaVersion: number;
@@ -59,6 +65,12 @@ export interface MockState {
   audit: AuditEntry[];
   /** Scripted "Promote to item" drafts, keyed by message id. */
   promotionHints: Record<string, PromotionDraft>;
+  documents: ProjectDocument[];
+  documentVersions: DocumentVersion[];
+  requirements: Requirement[];
+  stakeholders: Stakeholder[];
+  comms: CommsPlanRow[];
+  raciOverrides: RaciOverride[];
   /** id counter for new records */
   seq: number;
 }

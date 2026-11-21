@@ -4,9 +4,10 @@ import type {
   Baseline, Calendar, ChangeRequest, Channel, CheckinRequest, CheckinRound, CostEntry, DigestEntry,
   Impact, Item, ItemType, MailMessage, MailRule, Membership, Message, Notification, Person, PlanChange,
   Program, Proposal, Relation, ReportSection, ScheduledItem, Sprint, Status, StatusReport, Task, Workstream,
-  AuditEntry, Rag, CommsPlanRow, DocSection, DocumentKind, DocumentVersion, ProjectDocument, RaciLetter,
+  AuditEntry, Rag, CommsPlanRow, DocSection, DocumentKind, DocumentVersion, ProjectDocument,
   RaciOverride, Requirement, Stakeholder,
 } from '@/domain/types';
+import type { DocDrift, RaciMatrix, RenderedDocument } from '@/domain/documents';
 import type { EvmSnapshot } from '@/domain/evm';
 import type { PromotionDraft } from '@/domain/promotion';
 
@@ -90,7 +91,7 @@ export interface KeelApi {
     list(programId: string, q?: { state?: Proposal['state'] }): Promise<Proposal[]>;
     get(id: string): Promise<Proposal>;
     preview(programId: string, changes: PlanChange[]): Promise<Impact>;      // used by "edit then approve"
-    create(p: Omit<Proposal, 'id' | 'impact' | 'state' | 'createdAt'>): Promise<Proposal>;  // impact computed server-side
+    create(p: Omit<Proposal, 'id' | 'impact' | 'state' | 'createdAt' | 'summary'> & { summary?: string }): Promise<Proposal>;  // impact computed server-side
     approve(id: string, editedChanges?: PlanChange[]): Promise<void>;
     reject(id: string, reason?: string): Promise<void>;
   };
@@ -135,7 +136,7 @@ export interface KeelApi {
     list(programId: string): Promise<ProjectDocument[]>;
     get(id: string): Promise<ProjectDocument>;
     create(programId: string, kind: DocumentKind): Promise<ProjectDocument>;          // from the kind's template
-    updateSection(id: string, sectionId: string, patch: Pick<DocSection, 'title' | 'body'>): Promise<ProjectDocument>; // approved → new draft version
+    updateSection(id: string, sectionId: string, patch: Partial<Pick<DocSection, 'title' | 'body'>>): Promise<ProjectDocument>; // approved → new draft version
     submit(id: string): Promise<ProjectDocument>;
     decide(id: string, decision: 'approve' | 'reject', note?: string): Promise<ProjectDocument>; // all approve → frozen version
     versions(id: string): Promise<DocumentVersion[]>;
@@ -147,6 +148,8 @@ export interface KeelApi {
     raci(id: string): Promise<RaciMatrix>;                                           // derived + overrides + problems
     setRaci(o: RaciOverride): Promise<void>;
     stakeholders(programId: string): Promise<{ stakeholders: Stakeholder[]; comms: CommsPlanRow[] }>;
+    /** What needs the current persona: material drift, reviews awaiting them, communications due soon. */
+    attention(programId: string): Promise<DocAttention[]>;
   };
 
   audit: { list(programId: string, q?: { targetId?: string }): Promise<AuditEntry[]> };
@@ -187,23 +190,13 @@ export interface ScheduleView {
   agile: Record<string, { velocity: number; remainingPoints: number; projectedFinish: string | null; basis: string; start?: string }>;
 }
 
-export interface RenderedDocument {
+export type { DocDrift, LiveData, RaciMatrix, RenderedDocument } from '@/domain/documents';
+export interface DocAttention {
+  kind: 'drift' | 'review' | 'comms_due';
   documentId: string;
-  version: number | 'live';
-  sections: { id: string; title: string; kind: DocSection['kind']; body?: string; data?: unknown }[];
-}
-export interface DocDrift {
-  approvedVersion: number | null;
-  changedSectionIds: string[];
-  /** A gate/milestone moved past its approved date, or EAC moved > 5%. */
-  material: boolean;
-  summary: string[];                  // "G2 Energization +12 working days"
-}
-export interface RaciMatrix {
-  rows: { itemId: string; title: string }[];
-  people: { personId: string; name: string }[];
-  cells: Record<string, Record<string, { letters: RaciLetter[]; overridden: boolean }>>;
-  problems: { itemId: string; kind: 'no_accountable' | 'multiple_accountable' | 'no_responsible' }[];
+  title: string;
+  detail: string[];
+  due?: string;
 }
 
 export type ConnectorKind = 'jira' | 'github' | 'outlook' | 'gmail' | 'slack' | 'teams';

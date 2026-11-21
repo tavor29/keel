@@ -94,7 +94,7 @@ export interface KeelApi {
     list(programId: string, q?: { state?: Proposal['state'] }): Promise<Proposal[]>;
     get(id: string): Promise<Proposal>;
     preview(programId: string, changes: PlanChange[]): Promise<Impact>;      // used by "edit then approve"
-    create(p: Omit<Proposal, 'id' | 'impact' | 'state' | 'createdAt'>): Promise<Proposal>;  // impact computed server-side
+    create(p: Omit<Proposal, 'id' | 'impact' | 'state' | 'createdAt' | 'summary'> & { summary?: string }): Promise<Proposal>;  // impact computed server-side
     approve(id: string, editedChanges?: PlanChange[]): Promise<void>;
     reject(id: string, reason?: string): Promise<void>;
   };
@@ -139,7 +139,7 @@ export interface KeelApi {
     list(programId: string): Promise<ProjectDocument[]>;
     get(id: string): Promise<ProjectDocument>;
     create(programId: string, kind: DocumentKind): Promise<ProjectDocument>;          // from the kind's template
-    updateSection(id: string, sectionId: string, patch: Pick<DocSection, 'title' | 'body'>): Promise<ProjectDocument>; // approved → new draft version
+    updateSection(id: string, sectionId: string, patch: Partial<Pick<DocSection, 'title' | 'body'>>): Promise<ProjectDocument>; // approved → new draft version
     submit(id: string): Promise<ProjectDocument>;
     decide(id: string, decision: 'approve' | 'reject', note?: string): Promise<ProjectDocument>; // all approve → frozen version
     versions(id: string): Promise<DocumentVersion[]>;
@@ -151,6 +151,7 @@ export interface KeelApi {
     raci(id: string): Promise<RaciMatrix>;                                           // derived + overrides + problems
     setRaci(o: RaciOverride): Promise<void>;
     stakeholders(programId: string): Promise<{ stakeholders: Stakeholder[]; comms: CommsPlanRow[] }>;
+    attention(programId: string): Promise<DocAttention[]>;   // drift, reviews awaiting me, comms due
   };
 
   audit: { list(programId: string, q?: { targetId?: string }): Promise<AuditEntry[]> };

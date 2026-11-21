@@ -1,7 +1,8 @@
-import { AlertTriangle, CalendarClock, ClipboardCheck, Flag, Inbox, Sparkles, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ClipboardCheck, FileText, Flag, Inbox, Megaphone, Sparkles, TrendingUp } from 'lucide-react';
+import { Button } from '@/ui/Button';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router';
-import { useDecideCr, useDigest, useEvm, useItems, useMe, useMyRole, usePeople, useProposals, useSchedule, useWorkstreams, useCheckins } from '@/api/queries';
+import { useDecideCr, useDocActions, useDocAttention, useDigest, useEvm, useItems, useMe, useMyRole, usePeople, useProposals, useSchedule, useWorkstreams, useCheckins } from '@/api/queries';
 import { addDays } from '@/domain/dates';
 import { evmRag } from '@/domain/evm';
 import type { ChangeRequest, Item, Rag } from '@/domain/types';
@@ -51,6 +52,8 @@ export function BriefingPage() {
   const since = schedule ? addDays(schedule.asOf, -14) : '0000-00-00';
   const digest = useDigest(programId, since).data ?? [];
   const decide = useDecideCr();
+  const attention = useDocAttention(programId).data ?? [];
+  const docActions = useDocActions();
 
   const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
 
@@ -97,7 +100,9 @@ export function BriefingPage() {
   const lastRound = [...checkins].sort((a, b) => b.sentAt.localeCompare(a.sentAt))[0];
   const answered = lastRound?.requests.filter((r) => r.answer) ?? [];
   const atRisk = answered.filter((r) => r.answer?.kind !== 'on_track');
-  const needsCount = (role === 'pm' ? pending.length : 0) + myCrs.length;
+  const docItems = attention.filter((a) => a.kind !== 'comms_due');
+  const commsDue = attention.filter((a) => a.kind === 'comms_due');
+  const needsCount = (role === 'pm' ? pending.length : 0) + myCrs.length + docItems.length;
   const e = evm?.program && evm.program.bacCents > 0 ? evm.program : undefined;
 
   return (
@@ -113,6 +118,43 @@ export function BriefingPage() {
         <Panel title="Needs you" icon={<Sparkles />} action={needsCount ? <Badge tone="ai">{needsCount}</Badge> : null}>
           {needsCount === 0 && otherCrs.length === 0 && (role !== 'pm' || pending.length === 0) && <p className="text-muted">Nothing needs your decision right now.</p>}
           <div className="space-y-3">
+            {docItems.map((a) => (
+              <article key={a.kind + a.documentId} className={cn('rounded-lg border bg-surface p-3', a.kind === 'drift' ? 'border-red/40' : 'border-amber/50')} data-testid="doc-attention">
+                <header className="mb-1 flex items-center gap-1.5 text-[11.5px] text-subtle">
+                  <FileText className="size-3.5" aria-hidden />
+                  <Badge tone={a.kind === 'drift' ? 'red' : 'amber'}>{a.kind === 'drift' ? 'Document out of date' : 'Approval requested'}</Badge>
+                </header>
+                <p className="font-medium">
+                  {a.kind === 'drift' ? `${a.title}: the plan moved since it was approved` : `${a.title}: ${a.detail[0]}`}
+                </p>
+                {a.kind === 'drift' && (
+                  <ul className="mt-1 list-inside list-disc text-[12.5px] text-muted">
+                    {a.detail.map((d) => (
+                      <li key={d}>{humanize(d)}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {a.kind === 'drift' ? (
+                    <Button size="sm" variant="primary" disabled={docActions.submit.isPending} onClick={() => docActions.submit.mutate(a.documentId)}>
+                      Start re-approval
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="primary" disabled={docActions.decide.isPending} onClick={() => docActions.decide.mutate({ id: a.documentId, decision: 'approve' })}>
+                      Approve
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" asChild>
+                    <Link to={`/p/${programId}/documents?doc=${a.documentId}`}>Open document</Link>
+                  </Button>
+                  {a.kind === 'drift' && (
+                    <Button size="sm" variant="ghost" onClick={() => docActions.acknowledge.mutate(a.documentId)}>
+                      Acknowledge
+                    </Button>
+                  )}
+                </div>
+              </article>
+            ))}
             {myCrs.map((cr) => (
               <ChangeRequestCard key={cr.id} cr={cr} programId={programId} canDecide busy={decide.isPending} onDecide={(d) => decide.mutate({ id: cr.id, decision: d })} />
             ))}
@@ -231,6 +273,22 @@ export function BriefingPage() {
             ))}
           </ul>
         </Panel>
+
+        {commsDue.length > 0 && (
+          <Panel title="Communications due this week" icon={<Megaphone />}>
+            <ul className="space-y-1">
+              {commsDue.map((c) => (
+                <li key={c.title} className="flex items-center gap-2">
+                  <span className="w-14 shrink-0 tabular-nums text-muted">{fmtDate(c.due)}</span>
+                  <Link to={`/p/${programId}/documents?doc=${c.documentId}`} className="min-w-0 flex-1 truncate hover:underline">
+                    {c.title}
+                  </Link>
+                  <span className="truncate text-[11.5px] text-subtle">{c.detail[0]}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        )}
 
         {lastRound && (
           <Panel title="Check-ins" icon={<ClipboardCheck />}>

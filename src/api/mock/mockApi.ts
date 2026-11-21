@@ -5,10 +5,13 @@ import { suggestFiling } from '@/domain/mailFiling';
 import { suggestPromotion, type PromotionDraft } from '@/domain/promotion';
 import { actorFrom, can, type Action, type Actor, type Resource } from '@/domain/permissions';
 import { draftReport } from '@/domain/report';
-import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, Program, Proposal, StatusReport, Task } from '@/domain/types';
+import type { ChangeRequest, CheckinRequest, Item, MailMessage, Message, ProjectDocument, Program, Proposal, StatusReport, Task } from '@/domain/types';
+import type { DocAttention } from '../contract';
 import type { KeelApi, KeelEvent } from '../contract';
 import { ForbiddenError, NotFoundError, NotImplementedError, ValidationError } from '../errors';
-import { applyToState, createComputer, newId, previewImpact, rebaseline, toView } from './engine';
+import { applyToState, createComputer, docContext, newId, previewImpact, rebaseline, toView } from './engine';
+import { deriveRaci, documentDrift, freezeVersion, renderDocument } from '@/domain/documents';
+import { addDays as addCalendarDays } from '@/domain/dates';
 import { createEventBus } from './eventBus';
 import { browserStore, clearOldVersions, loadState, saveState, type KeyValueStore } from './persistence';
 import { createScenarioRunner, type ScenarioHost } from './scenarios';
@@ -263,6 +266,18 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
     speed: opts.scenarioSpeed ?? 1,
   };
   const scenarios = createScenarioRunner(host);
+
+  const findDoc = (s: MockState, id: string): ProjectDocument => {
+    const d = s.documents.find((x) => x.id === id);
+    if (!d) throw new NotFoundError(`document ${id}`);
+    const actor = actorIn(s, d.programId);
+    if (!actor || (actor.role === 'guest' && !d.sharedWithGuestIds.includes(s.currentPersonId))) throw new ForbiddenError('document.view');
+    return d;
+  };
+  const driftOf = (s: MockState, d: ProjectDocument) => {
+    const approved = s.documentVersions.filter((v) => v.documentId === d.id && v.version === d.approvedVersion).at(-1);
+    return documentDrift(d, approved, renderDocument(d, docContext(s, compute(s, d.programId))));
+  };
 
   const api: MockKeelApi = {
     session: {
@@ -755,7 +770,124 @@ export function createMockApi(opts: MockApiOptions = {}): MockKeelApi {
           (r) => [{ type: 'sprint.changed', sprintId: r.id }, ...programEvents(r.programId)],
         ),
     }),
-    documents: planned('documents', 4),
+    documents: planned<KeelApi['documents']>('documents', 5, {
+      list: (programId) =>
+        read((s) => {
+          requireProgram(s, programId, 'program.view');
+          const guest = actorIn(s, programId)?.role === 'guest';
+          return s.documents.filter((d) => d.programId === programId && (!guest || d.sharedWithGuestIds.includes(s.currentPersonId)));
+        }),
+      get: (id) => read((s) => findDoc(s, id)),
+      updateSection: (id, sectionId, patch) =>
+        write(
+          (s) => {
+            const d = findDoc(s, id);
+            requireProgram(s, d.programId, 'document.edit');
+            const sec = d.sections.find((x) => x.id === sectionId);
+            if (!sec) throw new NotFoundError(`section ${sectionId}`);
+            if (sec.kind !== 'narrative') throw new ValidationError('Live sections update themselves from the plan');
+            if (d.state === 'approved') Object.assign(d, { version: d.version + 1, state: 'draft', approvals: [] });
+            if (d.state === 'in_review') Object.assign(d, { state: 'draft', approvals: [] });
+            Object.assign(sec, patch);
+            d.updatedAt = now();
+            return d;
+          },
+          (d) => [{ type: 'document.changed', programId: d.programId, documentId: d.id }],
+        ),
+      submit: (id) =>
+        write(
+          (s) => {
+            const d = findDoc(s, id);
+            requireProgram(s, d.programId, 'document.edit');
+            if (d.state === 'in_review') throw new ValidationError('Already in review');
+            if (d.state === 'approved') d.version += 1;
+            Object.assign(d, { state: 'in_review', approvals: [], updatedAt: now() });
+            const ntfs = notify(s, d.approverIds.filter((a) => a !== s.currentPersonId), 'approval_needed', d.id);
+            queueMicrotask(() => ntfs.forEach((n) => bus.emit({ type: 'notification', notification: n })));
+            return d;
+          },
+          (d) => [{ type: 'document.changed', programId: d.programId, documentId: d.id }],
+        ),
+      decide: (id, decision, note) =>
+        write(
+          (s) => {
+            const d = findDoc(s, id);
+            requireProgram(s, d.programId, 'document.approve', d);
+            if (d.state !== 'in_review') throw new ValidationError('The document is not in review');
+            d.approvals = [...d.approvals.filter((a) => a.personId !== s.currentPersonId), { personId: s.currentPersonId, decision, at: now(), ...(note ? { note } : {}) }];
+            if (decision === 'reject') d.state = 'draft';
+            else if (d.approverIds.every((a) => d.approvals.some((x) => x.personId === a && x.decision === 'approve'))) {
+              const ctx = docContext(s, compute(s, d.programId));
+              s.documentVersions.push(freezeVersion(d, ctx, newId(s, 'dver'), now()));
+              Object.assign(d, { state: 'approved', approvedVersion: d.version });
+              delete d.driftAcknowledged;
+              s.digest.push({ id: newId(s, 'dig'), programId: d.programId, at: now(), group: 'decision', text: `${d.title} v${d.version} approved`, itemIds: [], sourceIds: [d.id] });
+            }
+            d.updatedAt = now();
+            return d;
+          },
+          (d) => [{ type: 'document.changed', programId: d.programId, documentId: d.id }],
+        ),
+      versions: (id) => read((s) => (findDoc(s, id), s.documentVersions.filter((v) => v.documentId === id).sort((a, b) => b.version - a.version))),
+      render: (id, version) =>
+        read((s) => {
+          const d = findDoc(s, id);
+          if (version === undefined) return renderDocument(d, docContext(s, compute(s, d.programId)));
+          const v = s.documentVersions.find((x) => x.documentId === id && x.version === version);
+          if (!v) throw new NotFoundError(`version ${version}`);
+          return { documentId: id, version, sections: v.sections.map((x) => ({ id: x.id, title: x.title, kind: x.kind, ...(x.body !== undefined ? { body: x.body } : {}), ...(x.rendered ? { data: x.rendered as never } : {}) })) };
+        }),
+      drift: (id) => read((s) => driftOf(s, findDoc(s, id))),
+      acknowledgeDrift: (id, note) =>
+        write(
+          (s) => {
+            const d = findDoc(s, id);
+            requireProgram(s, d.programId, 'document.edit');
+            d.driftAcknowledged = { version: d.approvedVersion ?? d.version, at: now(), byId: s.currentPersonId, ...(note ? { note } : {}) };
+            return d;
+          },
+          (d) => [{ type: 'document.changed', programId: d.programId, documentId: d.id }],
+        ),
+      requirements: (programId) => read((s) => (requireProgram(s, programId, 'program.view'), s.requirements.filter((r) => r.programId === programId))),
+      raci: (id) =>
+        read((s) => {
+          const d = findDoc(s, id);
+          return deriveRaci(docContext(s, compute(s, d.programId)), d.id);
+        }),
+      setRaci: (o) =>
+        write(
+          (s) => {
+            const d = findDoc(s, o.documentId);
+            requireProgram(s, d.programId, 'document.edit');
+            s.raciOverrides = [...s.raciOverrides.filter((x) => !(x.documentId === o.documentId && x.itemId === o.itemId && x.personId === o.personId)), o];
+            return d;
+          },
+          (d) => [{ type: 'document.changed', programId: d.programId, documentId: d.id }],
+        ).then(() => undefined),
+      stakeholders: (programId) =>
+        read((s) => (requireProgram(s, programId, 'program.view'), { stakeholders: s.stakeholders.filter((x) => x.programId === programId), comms: s.comms.filter((x) => x.programId === programId) })),
+      attention: (programId) =>
+        read((s) => {
+          requireProgram(s, programId, 'program.view');
+          const role = actorIn(s, programId)?.role;
+          const out: DocAttention[] = [];
+          for (const d of s.documents.filter((x) => x.programId === programId)) {
+            if (d.state === 'in_review' && d.approverIds.includes(s.currentPersonId) && !d.approvals.some((a) => a.personId === s.currentPersonId)) {
+              out.push({ kind: 'review', documentId: d.id, title: d.title, detail: [`v${d.version} is waiting for your approval`] });
+            }
+            if ((role === 'pm' || role === 'lead') && d.state === 'approved' && d.driftAcknowledged?.version !== d.approvedVersion) {
+              const dr = driftOf(s, d);
+              if (dr.material) out.push({ kind: 'drift', documentId: d.id, title: d.title, detail: dr.summary });
+            }
+          }
+          const horizon = addCalendarDays(s.today, 7);
+          for (const c of s.comms.filter((x) => x.programId === programId && x.ownerId === s.currentPersonId && x.nextDue && x.nextDue <= horizon)) {
+            const plan = s.documents.find((d) => d.programId === programId && d.kind === 'stakeholders');
+            out.push({ kind: 'comms_due', documentId: plan?.id ?? '', title: c.message, detail: [c.audience], due: c.nextDue });
+          }
+          return out;
+        }),
+    }),
     ai: planned<KeelApi['ai']>('ai', 5, {
       suggestPromotion: (messageId) =>
         read((s) => {

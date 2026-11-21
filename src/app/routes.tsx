@@ -3,6 +3,7 @@ import { Navigate, type RouteObject } from 'react-router';
 import { BoardsPage } from '@/features/boards/BoardsPage';
 import { BriefingPage } from '@/features/briefing/BriefingPage';
 import { ChannelsPage } from '@/features/channels/ChannelsPage';
+import { DocumentsPage } from '@/features/documents/DocumentsPage';
 import { ItemPage } from '@/features/item/ItemSheet';
 import { MailPage } from '@/features/mail/MailPage';
 import { ReportPage } from '@/features/report/ReportPage';
@@ -22,6 +23,7 @@ const built: Partial<Record<ScreenKey, ReactNode>> = {
   raid: <RaidPage />,
   boards: <BoardsPage />,
   channels: <ChannelsPage />,
+  documents: <DocumentsPage />,
 };
 
 export const routes: RouteObject[] = [

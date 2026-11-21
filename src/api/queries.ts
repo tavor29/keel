@@ -245,3 +245,40 @@ export function useUpdateItem() {
   const api = useApi();
   return useMutation({ mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof api.items.update>[1] }) => api.items.update(id, patch) });
 }
+
+// ── Living documents (phase 4) ─────────────────────────────
+
+export function useDocuments(programId: string) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'docs'], queryFn: () => api.documents.list(programId) });
+}
+
+export function useDocRender(programId: string, id: string | undefined, version?: number) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'docs', id, 'render', version ?? 'live'], queryFn: () => api.documents.render(id!, version), enabled: !!id, placeholderData: keepPreviousData });
+}
+
+export function useDocDrift(programId: string, id: string | undefined) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'docs', id, 'drift'], queryFn: () => api.documents.drift(id!), enabled: !!id });
+}
+
+export function useDocVersions(programId: string, id: string | undefined) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'docs', id, 'versions'], queryFn: () => api.documents.versions(id!), enabled: !!id });
+}
+
+export function useDocAttention(programId: string) {
+  const api = useApi();
+  return useQuery({ queryKey: ['p', programId, 'docs', 'attention'], queryFn: () => api.documents.attention(programId) });
+}
+
+export function useDocActions() {
+  const api = useApi();
+  return {
+    update: useMutation({ mutationFn: ({ id, sectionId, body }: { id: string; sectionId: string; body: string }) => api.documents.updateSection(id, sectionId, { body }) }),
+    submit: useMutation({ mutationFn: (id: string) => api.documents.submit(id) }),
+    decide: useMutation({ mutationFn: ({ id, decision }: { id: string; decision: 'approve' | 'reject' }) => api.documents.decide(id, decision) }),
+    acknowledge: useMutation({ mutationFn: (id: string) => api.documents.acknowledgeDrift(id) }),
+  };
+}

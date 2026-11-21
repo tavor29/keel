@@ -66,3 +66,14 @@ test('RAID log has assumptions, issues and decisions, plus a heat map', async ({
     await expect(page.getByTestId('raid-row').first()).toBeVisible();
   }
 });
+
+test('Documents: live charter, traced BRD and a validated RACI', async ({ page }) => {
+  await page.goto('/p/prg_titan/documents');
+  await expect(page.getByTestId('doc-card')).toHaveCount(4);
+  await expect(page.getByTestId('doc-viewer')).toContainText('Milestones & stage gates');
+  await page.getByTestId('doc-card').filter({ hasText: 'Business Requirements' }).click();
+  await expect(page.getByText('22 of 24 requirements traced')).toBeVisible();
+  await page.getByTestId('doc-card').filter({ hasText: 'RACI' }).click();
+  await expect(page.getByRole('alert')).toContainText('no one is Accountable');
+  await expect(page.getByRole('table', { name: 'RACI matrix' })).toBeVisible();
+});

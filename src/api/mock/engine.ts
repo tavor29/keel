@@ -8,6 +8,7 @@ import { computeRag, type RagReport } from '@/domain/rag';
 import { schedule, type ScheduleResult } from '@/domain/scheduling/schedule';
 import type { Impact, Item, Message, PlanChange } from '@/domain/types';
 import { wbsNumbers } from '@/domain/wbs';
+import type { DocContext } from '@/domain/documents';
 import type { ScheduleView } from '../contract';
 import { NotFoundError } from '../errors';
 import type { MockState } from './state';
@@ -183,4 +184,18 @@ export function rebaseline(s: MockState, compute: ReturnType<typeof createComput
   s.rev += 1;
   s.audit.push({ id: newId(s, 'aud'), programId, at: b.createdAt, actorId, action: 'baseline.set', targetId: b.id, changeRequestId });
   return b;
+}
+
+export function docContext(s: MockState, c: Computed): DocContext {
+  return {
+    plan: c.plan,
+    result: c.result,
+    rag: c.rag,
+    people: s.people,
+    memberships: s.memberships,
+    requirements: s.requirements,
+    stakeholders: s.stakeholders,
+    comms: s.comms,
+    raciOverrides: s.raciOverrides,
+  };
 }
