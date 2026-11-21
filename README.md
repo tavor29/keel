@@ -1,6 +1,6 @@
 # Keel
 
-**Program management where the conversation *is* the plan.**
+**Program management software**
 
 **▶ Live demo: [keel-eta-blond.vercel.app](https://keel-eta-blond.vercel.app)** (fictional data; click **Demo** in the bottom-right corner and run the scenario)
 
